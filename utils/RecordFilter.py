@@ -1,0 +1,69 @@
+# -*- coding: utf-8 -*-
+"""
+
+@title:	Style Guide for Python Code
+@author: iDeal0103
+@status:	Active
+@type:	Process
+@created:	17-Apr-2021
+@post-History:	17-Apr-2021
+
+comment：
+    1.筛选时间最近的某个PRN号卫星记录
+    2.
+
+"""
+#import module
+
+
+#筛选时间最近的某个PRN号卫星记录
+def cal_delta_time(time1,time2):
+    if time1>time2:
+        delta_time=(time1-time2)
+    else:
+        delta_time=(time2-time1)
+    return delta_time
+
+def find_closest_record(records, time, serial_no):  # serial_no为卫星PRN编号
+    n = 0
+    while True:
+        if int(records[n].serial_no) == int(serial_no):       # TODO 此处对于PRN编号的表示是用格式化的字符串还是化为整数可再商榷
+        # if records[n].serial_no == '{:0>2d}'.format(serial_no):
+            closest_record = records[n]
+            break
+        n += 1
+    record_time = records[n].toc
+    delta_time_min = cal_delta_time(time, record_time)
+    for i in range(n+1, len(records)):
+        if int(records[i].serial_no) == int(serial_no):
+        # if records[i].serial_no == '{:0>2d}'.format(serial_no):
+            record_time = records[i].toc
+            delta_time = cal_delta_time(time, record_time)
+            if delta_time < delta_time_min:
+                delta_time_min = delta_time
+                closest_record = records[i]
+    return closest_record
+
+
+#将读取n文件获得的GPS_brdc_record列表中非整点数据除去
+def GPSBrdcRecord_HourIntegerRecord_Filter(GPS_brdc_records):
+    filtered_GPS_brdc_records=[]
+    for record in GPS_brdc_records:
+        if record.toe%60==0:
+            filtered_GPS_brdc_records.append(record)
+    return filtered_GPS_brdc_records
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+
+
+
+
