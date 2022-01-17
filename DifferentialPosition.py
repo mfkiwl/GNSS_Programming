@@ -166,10 +166,6 @@ def SD_onPseudorange(knownStation_ob_records, unknownStation_ob_records, br_reco
     return Xu, Yu, Zu
     
 
-
-
-    
-    
     
 # 主程序
 if __name__ == "__main__":
