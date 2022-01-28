@@ -71,7 +71,7 @@ def cal_deltatime_second(datetime_time):
     return delta_time
 
 # 计算两个GPSws对象的时间差
-def cal_deltatime_second_GPSws(GPSws1, GPSws2):
+def cal_GPSws_deltatime_inseconds(GPSws1, GPSws2):
     GpsWeekDelta = GPSws1.GpsWeek - GPSws2.GpsWeek
     GpsSecondDelta = GPSws1.GpsSecond - GPSws2.GpsSecond
     delta_second = GpsWeekDelta * 7 * 86400 + GpsSecondDelta
@@ -126,29 +126,29 @@ def from_JD_cal_datetime(JD):
     Y = c-4715-int((7+M)/10)
     # 将D化为日(day)时(hour)分(minute)秒(second)
     day = int(math.modf(D)[1])
-    seconds=math.modf(D)[0]*86400   #日的小数部分化为秒
-    date_time=datetime.datetime(Y, M, day)+datetime.timedelta(seconds=seconds)
+    seconds = math.modf(D)[0]*86400   # 日的小数部分化为秒
+    date_time = datetime.datetime(Y, M, day)+datetime.timedelta(seconds=seconds)
     return date_time
 
 
 #由date_time时间计算GPS周和GPS秒
-def from_datetime_cal_GPStime_2(datetime):
-    JD=from_datetime_cal_JD(datetime)
-    GPS_week,GPS_second=from_JD_cal_GPStime(JD)
-    return GPS_week,GPS_second
+def from_datetime_cal_GPSws(datetime):
+    JD = from_datetime_cal_JD(datetime)
+    GPS_week, GPS_second = from_JD_cal_GPStime(JD)
+    return GPS_week, GPS_second
 
 
 #由UTC时间计算BD周和BD秒
 def from_UTCtime_cal_BDtime_2(UTCtime):
     JD=from_datetime_cal_JD(UTCtime)
-    GPS_week,GPS_second=from_JD_cal_GPStime(JD)
+    GPS_week,GPS_second = from_JD_cal_GPStime(JD)
     BD_week=GPS_week-1356
     BD_second=GPS_second-14
     return BD_week,BD_second
 
 
-def from_GPStime_cal_JD(GPS_week,GPS_second):
-    JD=GPS_second/86400.0+7*GPS_week+2444244.5
+def from_GPStime_cal_JD(GPS_week, GPS_second):
+    JD = GPS_second/86400.0 + 7*GPS_week + 2444244.5
     return JD
 
 #由GPS周和GPS秒计算datetime时间

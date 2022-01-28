@@ -141,10 +141,26 @@ def Tropospheric_Delay_Correction_UNB3(P, t, XYZ_pos, sat_pos):
     # 计算对流层延迟
     # 不加入大气梯度
     deltaP = mh * deltaP_hz + mw * deltaP_wz
-    # 加入大气梯度
-    deltaP = mh * deltaP_hz + mw * deltaP_wz + mh * (math.cos(A) + math.sin(A)) + mw * (math.cos(A) + math.sin(A))
+    # # 加入大气梯度
+    # deltaP = mh * deltaP_hz + mw * deltaP_wz + mh * (math.cos(A) + math.sin(A)) + mw * (math.cos(A) + math.sin(A))
     P_corrected = P - deltaP
     return P_corrected
+
+def Tropospheric_Delay_Correction_UNB3_M(P, t, XYZ_pos, sat_pos):
+    """
+    P : m , 伪距值
+    t : datetime.datetime , 日期
+    XYZ_pos : float list [X,Y,Z] , 地面点直角坐标
+    sat_pos : float list [X,Y,Z] , 卫星直角坐标
+    """
+    doy = cal_doy(t)
+    ele, a = CoorTransform.cal_ele_and_A(XYZ_pos, sat_pos)
+    B,L,H = CoorTransform.cal_XYZ2BLH(XYZ_pos[0], XYZ_pos[1], XYZ_pos[2])
+    M = Niell(B, H, ele, doy)
+    D = UNB3(B, H, doy)
+    dtrop = M[0] * D[0] + M[1] * D[1]
+    P -= dtrop
+    return P
 
 
 # 计算gm

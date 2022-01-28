@@ -17,17 +17,17 @@ comment：
 
 
 #筛选时间最近的某个PRN号卫星记录
-def cal_delta_time(time1,time2):
-    if time1>time2:
-        delta_time=(time1-time2)
+def cal_delta_time(time1, time2):
+    if time1 > time2:
+        delta_time = (time1-time2)
     else:
-        delta_time=(time2-time1)
+        delta_time = (time2-time1)
     return delta_time
 
-def find_closest_record(records, time, serial_no):  # serial_no为卫星PRN编号
+def find_closest_record(records, time, SVN):  # SVN为卫星编号,"G**"
     n = 0
     while True:
-        if int(records[n].serial_no) == int(serial_no):       # TODO 此处对于PRN编号的表示是用格式化的字符串还是化为整数可再商榷
+        if records[n].SVN == SVN:
         # if records[n].serial_no == '{:0>2d}'.format(serial_no):
             closest_record = records[n]
             break
@@ -35,7 +35,7 @@ def find_closest_record(records, time, serial_no):  # serial_no为卫星PRN编�
     record_time = records[n].toc
     delta_time_min = cal_delta_time(time, record_time)
     for i in range(n+1, len(records)):
-        if int(records[i].serial_no) == int(serial_no):
+        if records[i].SVN == SVN:
         # if records[i].serial_no == '{:0>2d}'.format(serial_no):
             record_time = records[i].toc
             delta_time = cal_delta_time(time, record_time)

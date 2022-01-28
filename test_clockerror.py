@@ -13,7 +13,7 @@ dts = []
 Tr = datetime.datetime(2020, 11, 5, 0, 00, 0)
 
 while Tr < datetime.datetime(2020, 11, 5, 23, 20, 16):
-    w, s = ts.from_datetime_cal_GPStime_2(Tr)
+    w, s = ts.from_datetime_cal_GPSws(Tr)
     Tr_GPSws = ts.GPSws(w, s)
     br_records = df.read_GPS_nFile(broadcast_file)
     # br_records = rf.GPSBrdcRecord_HourIntegerRecord_Filter(br_records)

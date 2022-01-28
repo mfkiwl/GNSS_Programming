@@ -34,7 +34,7 @@ def cal_XYZ2BLH(X,Y,Z,e=0.08181919084,a=6378137.0):
     N=a/math.sqrt(1-e**2*math.sin(B)**2)
     H=Z/math.sin(B)-N*(1-e**2)
     #H=math.sqrt(X**2+Y**2)/math.cos(B)-N
-    return B,L,H
+    return B, L, H
 
 
 '''
@@ -56,16 +56,17 @@ def cal_NEU(stationcenter_coor,object_coor):
 '''
 由设站点XYZ坐标和目标点XYZ坐标
 计算目标点在设站点的站心地平坐标系中的高度角
+返回的角度值均为弧度
 '''
 def cal_ele_and_A(stationcenter_coor,object_coor):
-    Xr, Yr, Zr=stationcenter_coor
-    B, L, H=cal_XYZ2BLH(Xr, Yr, Zr)
-    R=np.array([[-sin(B)*cos(L),-sin(L),cos(B)*cos(L)],[-sin(B)*sin(L),cos(L),cos(B)*sin(L)],[cos(B),0,sin(B)]]).astype(float)
-    dxyz=np.array(object_coor)-np.array(stationcenter_coor)
-    NEU=np.linalg.inv(R)@dxyz
-    N=NEU[0]
-    E=NEU[1]
-    U=NEU[2]
+    Xr, Yr, Zr = stationcenter_coor
+    B, L, H = cal_XYZ2BLH(Xr, Yr, Zr)
+    R = np.array([[-sin(B)*cos(L), -sin(L), cos(B)*cos(L)], [-sin(B)*sin(L),cos(L),cos(B)*sin(L)], [cos(B),0,sin(B)]]).astype(float)
+    dxyz = np.array(object_coor)-np.array(stationcenter_coor)
+    NEU = np.linalg.inv(R)@dxyz
+    N = NEU[0]
+    E = NEU[1]
+    U = NEU[2]
     ele = math.atan2(U, math.sqrt(N**2+E**2))
     # 根据所在象限计算方位角(依次为一、二、三、四象限)
     if N > 0 and E > 0:

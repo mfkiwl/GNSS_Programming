@@ -60,7 +60,14 @@ def timeString2UTC_1(timeString):
     +datetime.timedelta(seconds=float(tslist[5]))
     return UTCtime
     
-    
+def get_standard_SVN(system, no):
+    if isinstance(no, str):
+        if no != "":
+            SVN = str(system) + '{:0>2d}'.format(int(no))
+    elif isinstance(no, int):
+        SVN = str(system) + '{:0>2d}'.format(no)
+    return SVN
+
 
 #  n文件
 """
@@ -72,10 +79,10 @@ def timeString2UTC_1(timeString):
 """
 #GPS广播星历记录解析类
 class GPS_brdc_record():
-    def __init__(self,data):
+    def __init__(self, data):
         #解析第一行
         #self.serial_no=int(data[0][0:2])
-        self.serial_no=data[0][0:2]
+        self.SVN=get_standard_SVN("G", data[0][0:2])
         self.toc=timeString2UTC_1(data[0][2:22])
         self.a0=parse_Dstring(data[0][22:41])
         self.a1=parse_Dstring(data[0][41:60])
@@ -138,10 +145,10 @@ def read_GPS_nFile(GPS_nFile):
     
 #Renix3.04广播星历记录解析类
 class Renix304_brdc_record():
-    def __init__(self,data):
+    def __init__(self, data):
         #解析第一行
         #self.serial_no=int(data[0][0:2])
-        self.serial_no=data[0][0:2]
+        self.SVN=get_standard_SVN("G", data[0][0:2])
         self.toc=timeString2UTC_1(data[0][2:22])
         self.a0=parse_Dstring(data[0][22:41])
         self.a1=parse_Dstring(data[0][41:60])
@@ -224,11 +231,11 @@ class satelliteobit_XYZdT:
 
 # 读取GPS的sp3文件,返回satelliteobit_XYZdT类的记录对象
 def read_GPS_sp3File(GPS_sp3File):
-    pef=open(GPS_sp3File,"r")
+    pef=open(GPS_sp3File, "r")
     for i in range(3):
         line=pef.readline()
     sat_num=int(line[4:6])
-    for i in range(3,22):
+    for i in range(3, 22):
         line=pef.readline()
     all_records=pef.readlines()
     pef.close()
@@ -265,44 +272,43 @@ def read_GPS_sp3File(GPS_sp3File):
 """
 将对应行数的数据作为参数读入并进行初始化解析
 
-已满足的数据有：
-    GPS
+可支持混合数据
+    
     
 """
-#GPS观测记录解析类
-class GPS_observation_record:
-    def __init__(self,system,PRN,time,data):
-        self.system=system
-        self.PRN=PRN
+#观测记录解析类
+class observation_record:
+    def __init__(self, SVN, time, data):
+        self.SVN=SVN
         self.time=time
         self.data=data
 
-# 读取GPS的o文件,返回GPS_observation_record类的记录对象
-def read_GPS_oFile(GPS_oFile):
+# 读取Renix3的观测文件,返回observation_record类的记录对象
+def read_Rinex2_oFile(Rinex2_oFile):
     """
     Parameters
     ----------
-        GPS_nFile : 文件路径(需包含 r"",如r"E:\大三下\卫星与导航定位\data\brdc3120.20n")   
+        Rinex2_oFile : 文件路径(需包含 r"",如r"edata\obs\wab23100.20o")
     Returns
     -------
-        list[GPS_brdc_record class]
+        list[observation_record class]
         
     """
-    of=open(GPS_oFile, "r")
-    GPS_observation_records = []     # 存储GPS_observation_record的列表
-    #读取文件头中的观测记录对象描述
+    of=open(Rinex2_oFile, "r")
+    observation_records = []     # 存储observation_record的列表
+    # 读取文件头中的观测记录对象描述
     header = []
-    line=of.readline()
+    line = of.readline()
     header.append(line.strip())
     # 反复读入行直到观测类型记录行
-    while line.strip()[-15:]!="TYPES OF OBSERV":
-        line=of.readline()
+    while line.strip()[-15:] != "TYPES OF OBSERV":
+        line = of.readline()
         header.append(line.strip())
     # o文件中观测记录的观测对象个数
     observation_num=int(line[:6])
     # 文件头第12行处开始的观测类型行数
-    header_ob_linenum=math.ceil(observation_num/9)    #文件头中观测类型行数
-    lastline_header_ob_num=observation_num%9    #文件头中观测类型最后一行的个数
+    header_ob_linenum=math.ceil(observation_num/9)    # 文件头中观测类型行数
+    lastline_header_ob_num=observation_num%9    # 文件头中观测类型最后一行的个数
     # o文件中每条观测记录的行数
     gap=math.ceil(observation_num/5)
     # lastline_main_ob_num=observation_num%5
@@ -330,82 +336,225 @@ def read_GPS_oFile(GPS_oFile):
             type_name=line[cursor:cursor+6].strip()
             observation_types.append(type_name)
             cursor+=6
-    #读取到文件头的尾部
+    # 读取到文件头的尾部
     line=of.readline()
     header.append(line.strip())
     while line.strip()!="END OF HEADER":
         line=of.readline()
         header.append(line.strip())
-    #开始读取主体数据
-    main_data=of.readlines()     #全部主体数据,以列表存储
+    # 开始读取主体数据
+    main_data=of.readlines()     # 全部主体数据,以列表存储
     of.close()
     firstline_cursor=0
-    while firstline_cursor<len(main_data):
-        if main_data[firstline_cursor+1]=="RINEX FILE SPLICE                                           COMMENT\n":
-            firstline_cursor+=2
+    while firstline_cursor < len(main_data):
+        if main_data[firstline_cursor].split()[-1] == "COMMENT" or len(main_data[firstline_cursor].strip())==4:   # 第二个条件为splice之前的“4  1”这样的内容行
+            while main_data[firstline_cursor].split()[-1] == "COMMENT" or len(main_data[firstline_cursor].strip())==4:
+                firstline_cursor += 1
+        # print(main_data[firstline_cursor])
         year=int("20"+main_data[firstline_cursor][1:3])
         month=int(main_data[firstline_cursor][4:6])
         day=int(main_data[firstline_cursor][7:9])
         hour=int(main_data[firstline_cursor][10:12])
         minute=int(main_data[firstline_cursor][13:15])
         second=eval(main_data[firstline_cursor][15:26])
-        time=datetime.datetime(year,month,day,hour,minute)+datetime.timedelta(seconds=second)
-        #此处可以加一个对卫星状态的判断
-        sat_num=int(main_data[firstline_cursor][29:32])  #观测卫星个数,即PRN个数
-        PRN_row_num=math.ceil(sat_num/12)   #得到卫星PRN记录行数
-        last_row_col=sat_num%12   #最后一行卫星PRN对应的个数
-        cursor=firstline_cursor+PRN_row_num    #确定卫星观测数据所起始行
-        n_of_line=1     #在每行所读prn的个数
-        n=0       #所读prn所在的行数
-        while n<PRN_row_num-1:  #未读到PRN记录的最后一行
-           the_sprn=main_data[firstline_cursor+n][29+3*n_of_line:32+3*n_of_line]
+        time=datetime.datetime(year, month, day, hour, minute)+datetime.timedelta(seconds=second)  # 只能精确到1us,观测文件上最小位为0.1us
+        # 此处可以加一个对卫星状态的判断
+        sat_num=int(main_data[firstline_cursor][29:32])  # 观测卫星个数,即PRN个数
+        SVN_row_num=math.ceil(sat_num / 12)   # 得到卫星SVN记录行数
+        last_row_col=sat_num%12   # 最后一行卫星SVN的个数
+        cursor= firstline_cursor + SVN_row_num    # 确定卫星观测数据所起始行
+        n_of_line=1     # 在每行所读SVN的个数
+        n=0       # 所读SVN所在的行数
+        while n<SVN_row_num-1:  # 未读到SVN记录的最后一行
+           the_svn= main_data[firstline_cursor + n][29 + 3 * n_of_line:32 + 3 * n_of_line]
            the_data={}
-           #读入每一个观测类型的数据
+           # 读入每一个观测类型的数据
            for i in range(len(observation_types)):
-               l=(i+1)//5   #目前读取到的卫星观测值在记录块中的行数
-               k=(i+1)%5   #目前读取到的卫星观测数据所在行的位置数
+               l=(i+1)//5   # 目前读取到的卫星观测值在记录块中的行数
+               k=(i+1)%5   # 目前读取到的卫星观测数据所在行的位置数
                if k==0:
                    l=l-1
                    k=5
                data_detail={}
-               if main_data[cursor+l][16*(k-1):16*k-2].strip()!="":  
-                   data_detail['observation']=float(eval(main_data[cursor+l][16*(k-1):16*k-2]))
+               if main_data[cursor+l][16*(k-1):16*k-2].strip() != "":
+                   data_detail['observation'] = float(eval(main_data[cursor+l][16*(k-1):16*k-2]))
                else:
-                   data_detail['observation']=""
-               data_detail['LLI']=main_data[cursor+l][16*k-2:16*k-1]
-               data_detail['Signal strength']=main_data[cursor+l][16*k-1:16*k]
+                   data_detail['observation'] = ""
+               data_detail['LLI'] = main_data[cursor+l][16*k-2:16*k-1].strip()
+               data_detail['Signal strength'] = main_data[cursor+l][16*k-1:16*k].strip()
                the_data["%s"%observation_types[i]]=data_detail
-           obrecord=GPS_observation_record(the_sprn[0],the_sprn[1:],time,the_data)
-           GPS_observation_records.append(obrecord)
+           obrecord = observation_record(the_svn, time, the_data)
+           observation_records.append(obrecord)
            n_of_line+=1
            cursor+=gap
            if n_of_line==13:
                n+=1
                n_of_line=1
+        # 读取最后一行SVN对应的数据
         while n_of_line<=last_row_col:
-           the_sprn=main_data[firstline_cursor+n][29+3*n_of_line:32+3*n_of_line]
+           the_svn= main_data[firstline_cursor + n][29 + 3 * n_of_line:32 + 3 * n_of_line]
            the_data={}
            for i in range(len(observation_types)):
-               l=(i+1)//5   #目前读取到的卫星观测值在记录块中的行数
-               k=(i+1)%5   #目前读取到的卫星观测数据所在行的位置数
-               if k==0:
+               l=(i+1) // 5   # 目前读取到的卫星观测值在记录块中的行数
+               k=(i+1) % 5   # 目前读取到的卫星观测数据所在行的位置数
+               if k == 0:
                    l=l-1
                    k=5
                data_detail={}
-               if main_data[cursor+l][16*(k-1):16*k-2].strip()!="":  
+               if main_data[cursor+l][16*(k-1):16*k-2].strip() != "":
                    data_detail['observation']=float(eval(main_data[cursor+l][16*(k-1):16*k-2]))
                else:
                    data_detail['observation']=""
                data_detail['LLI']=main_data[cursor+l][16*k-2:16*k-1].strip()
                data_detail['Signal strength']=main_data[cursor+l][16*k-1:16*k].strip()
                the_data["%s"%observation_types[i]]=data_detail
-           obrecord=GPS_observation_record(the_sprn[0],the_sprn[1:],time,the_data)
-           GPS_observation_records.append(obrecord)
+           obrecord=observation_record(the_svn, time, the_data)
+           observation_records.append(obrecord)
            n_of_line+=1
            cursor+=gap
-        firstline_cursor+=(PRN_row_num+gap*sat_num)
-    return GPS_observation_records
-    
+        firstline_cursor += (SVN_row_num + gap * sat_num)
+    return observation_records
+
+
+# 读取Rinex3的观测文件,返回observation_record类的记录对象
+def read_Rinex3_oFile(Rinex3_oFile):
+    """
+    Parameters
+    ----------
+        Rinex3_oFile : 文件路径(需包含 r"",如r"edata\obs\wab23100.20o")
+    Returns
+    -------
+        list[observation_record class]
+
+    """
+    of = open(Rinex3_oFile, "r")
+    observation_records = []  # 存储observation_record的列表
+    # 读取文件头中的观测记录对象描述
+    header = []
+    line = of.readline()
+    header.append(line.strip())
+    # 反复读入行直到观测类型记录行
+    while line.strip()[-15:] != "TYPES OF OBSERV":
+        line = of.readline()
+        header.append(line.strip())
+    # o文件中观测记录的观测对象个数
+    observation_num = int(line[:6])
+    # 文件头第12行处开始的观测类型行数
+    header_ob_linenum = math.ceil(observation_num / 9)  # 文件头中观测类型行数
+    lastline_header_ob_num = observation_num % 9  # 文件头中观测类型最后一行的个数
+    # o文件中每条观测记录的行数
+    gap = math.ceil(observation_num / 5)
+    # lastline_main_ob_num=observation_num%5
+    # 读取文件中的观测数类型
+    observation_types = []
+    # 只有一行观测类型的情况
+    if header_ob_linenum == 1:
+        cursor = 6
+        for i in range(lastline_header_ob_num):
+            type_name = line[cursor:cursor + 6].strip()
+            observation_types.append(type_name)
+            cursor += 6
+    # 有多行观测类型的情况
+    else:
+        for j in range(header_ob_linenum - 1):
+            cursor = 6
+            for i in range(9):
+                type_name = line[cursor:cursor + 6].strip()
+                observation_types.append(type_name)
+                cursor += 6
+            line = of.readline()
+            header.append(line.strip())
+            cursor = 6
+        for k in range(lastline_header_ob_num):
+            type_name = line[cursor:cursor + 6].strip()
+            observation_types.append(type_name)
+            cursor += 6
+    # 读取到文件头的尾部
+    line = of.readline()
+    header.append(line.strip())
+    while line.strip() != "END OF HEADER":
+        line = of.readline()
+        header.append(line.strip())
+    # 开始读取主体数据
+    main_data = of.readlines()  # 全部主体数据,以列表存储
+    of.close()
+    firstline_cursor = 0
+    while firstline_cursor < len(main_data):
+        # if main_data[firstline_cursor+1]=="RINEX FILE SPLICE                                           COMMENT\n":
+        #     while main_data[firstline_cursor+1].split()[-1] == "COMMENT":
+        #         firstline_cursor += 1
+        # 如果中间有 COMMENT 的语句，则进行跳过
+        # print(Rinex2_oFile, "   ", str(firstline_cursor))
+        if main_data[firstline_cursor].split()[-1] == "COMMENT" or len(
+                main_data[firstline_cursor].strip()) == 4:  # 第二个条件为splice之前的“4  1”这样的内容行
+            while main_data[firstline_cursor].split()[-1] == "COMMENT" or len(main_data[firstline_cursor].strip()) == 4:
+                firstline_cursor += 1
+        # print(main_data[firstline_cursor])
+        year = int("20" + main_data[firstline_cursor][1:3])
+        month = int(main_data[firstline_cursor][4:6])
+        day = int(main_data[firstline_cursor][7:9])
+        hour = int(main_data[firstline_cursor][10:12])
+        minute = int(main_data[firstline_cursor][13:15])
+        second = eval(main_data[firstline_cursor][15:26])
+        time = datetime.datetime(year, month, day, hour, minute) + datetime.timedelta(
+            seconds=second)  # 只能精确到1us,观测文件上最小位为0.1us
+        # 此处可以加一个对卫星状态的判断
+        sat_num = int(main_data[firstline_cursor][29:32])  # 观测卫星个数,即PRN个数
+        SVN_row_num = math.ceil(sat_num / 12)  # 得到卫星SVN记录行数
+        last_row_col = sat_num % 12  # 最后一行卫星SVN的个数
+        cursor = firstline_cursor + SVN_row_num  # 确定卫星观测数据所起始行
+        n_of_line = 1  # 在每行所读SVN的个数
+        n = 0  # 所读SVN所在的行数
+        while n < SVN_row_num - 1:  # 未读到SVN记录的最后一行
+            the_svn = main_data[firstline_cursor + n][29 + 3 * n_of_line:32 + 3 * n_of_line]
+            the_data = {}
+            # 读入每一个观测类型的数据
+            for i in range(len(observation_types)):
+                l = (i + 1) // 5  # 目前读取到的卫星观测值在记录块中的行数
+                k = (i + 1) % 5  # 目前读取到的卫星观测数据所在行的位置数
+                if k == 0:
+                    l = l - 1
+                    k = 5
+                data_detail = {}
+                if main_data[cursor + l][16 * (k - 1):16 * k - 2].strip() != "":
+                    data_detail['observation'] = float(eval(main_data[cursor + l][16 * (k - 1):16 * k - 2]))
+                else:
+                    data_detail['observation'] = ""
+                data_detail['LLI'] = main_data[cursor + l][16 * k - 2:16 * k - 1].strip()
+                data_detail['Signal strength'] = main_data[cursor + l][16 * k - 1:16 * k].strip()
+                the_data["%s" % observation_types[i]] = data_detail
+            obrecord = observation_record(the_svn, time, the_data)
+            observation_records.append(obrecord)
+            n_of_line += 1
+            cursor += gap
+            if n_of_line == 13:
+                n += 1
+                n_of_line = 1
+        # 读取最后一行SVN对应的数据
+        while n_of_line <= last_row_col:
+            the_svn = main_data[firstline_cursor + n][29 + 3 * n_of_line:32 + 3 * n_of_line]
+            the_data = {}
+            for i in range(len(observation_types)):
+                l = (i + 1) // 5  # 目前读取到的卫星观测值在记录块中的行数
+                k = (i + 1) % 5  # 目前读取到的卫星观测数据所在行的位置数
+                if k == 0:
+                    l = l - 1
+                    k = 5
+                data_detail = {}
+                if main_data[cursor + l][16 * (k - 1):16 * k - 2].strip() != "":
+                    data_detail['observation'] = float(eval(main_data[cursor + l][16 * (k - 1):16 * k - 2]))
+                else:
+                    data_detail['observation'] = ""
+                data_detail['LLI'] = main_data[cursor + l][16 * k - 2:16 * k - 1].strip()
+                data_detail['Signal strength'] = main_data[cursor + l][16 * k - 1:16 * k].strip()
+                the_data["%s" % observation_types[i]] = data_detail
+            obrecord = observation_record(the_svn, time, the_data)
+            observation_records.append(obrecord)
+            n_of_line += 1
+            cursor += gap
+        firstline_cursor += (SVN_row_num + gap * sat_num)
+    return observation_records
+
 
 #  clk文件
 """

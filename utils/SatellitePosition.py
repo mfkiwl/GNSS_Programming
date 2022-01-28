@@ -25,7 +25,7 @@ import utils.RecordFilter as RecordFilter
 
 
 # 以某条记录为基础,计算卫星位置
-def cal_SatellitePosition_GPS_datetime(time,serial_no,brs):
+def cal_SatellitePosition_GPS_datetime(time, serial_no, brs):
     """
     Parameters
     ----------
@@ -36,40 +36,40 @@ def cal_SatellitePosition_GPS_datetime(time,serial_no,brs):
         X,Y,Z ：卫星的三维坐标(单位为m)
     """ 
     #筛选出最接近的一条记录
-    br=RecordFilter.find_closest_record(brs,time,serial_no)   
+    br = RecordFilter.find_closest_record(brs,time,serial_no)
     # (1)Time from ephemeris epoch toe
-    tk=TimeSystem.from_datetime_cal_GPStime_2(time)[1]-br.toe
+    tk = TimeSystem.from_datetime_cal_GPSws(time)[1] - br.toe
     # (2)Calculate the semimajor axis
-    a=br.sqrt_a**2
+    a = br.sqrt_a**2
     # (3)Compute mean motion – rad/s
-    n0=math.sqrt(const.miu/a**3)
+    n0 = math.sqrt(const.miu/a**3)
     # (4)Correct mean motion
-    n=n0+br.delta_n
+    n = n0+br.delta_n
     # (5)Mean anomaly Mk at epoch t
-    Mk=br.M0+n*tk
+    Mk = br.M0+n*tk
     # (6)Eccentricity anomaly Ek at epoch t
-    Ek=cal_Ek(Mk,br.e)
+    Ek = cal_Ek(Mk,br.e)
     # (7)True anomaly vk at epoch t
-    vk=2*math.atan(math.sqrt(1-br.e**2)/(1-br.e)*math.tan(Ek/2))
+    vk = 2*math.atan(math.sqrt(1-br.e**2)/(1-br.e)*math.tan(Ek/2))
     # (8)argument of latitude
-    uk=vk+br.w
+    uk = vk+br.w
     # (9)Corrections for second harmonic perturbations
-    delta_uk=br.Cuc*math.cos(2*uk)+br.Cus*math.sin(2*uk)
-    delta_rk=br.Crc*math.cos(2*uk)+br.Crs*math.sin(2*uk)
-    delta_ik=br.Cic*math.cos(2*uk)+br.Cis*math.sin(2*uk)
+    delta_uk = br.Cuc*math.cos(2*uk)+br.Cus*math.sin(2*uk)
+    delta_rk = br.Crc*math.cos(2*uk)+br.Crs*math.sin(2*uk)
+    delta_ik = br.Cic*math.cos(2*uk)+br.Cis*math.sin(2*uk)
     # (10) Corrected argument of latitude, radius and inclination
-    u=uk+delta_uk
-    r=a*(1-br.e*math.cos(Ek))+delta_rk
-    i=br.i0+delta_ik+br.i_dot*tk
+    u = uk+delta_uk
+    r = a*(1-br.e*math.cos(Ek))+delta_rk
+    i = br.i0+delta_ik+br.i_dot*tk
     # (11) Satellites’ positions in orbital plane
-    x=r*math.cos(u)
-    y=r*math.sin(u)
+    x = r*math.cos(u)
+    y = r*math.sin(u)
     # (12) Corrected longitude of ascending node at epoch t
-    lamb=br.omega0+(br.omega_dot-const.we)*tk-const.we*br.toe
+    lamb = br.omega0+(br.omega_dot-const.we)*tk-const.we*br.toe
     # (13) Satellites coordinates at ECEF system
-    poscoor_ECEF_X=r*(math.cos(u)*math.cos(lamb)-math.sin(u)*math.cos(i)*math.sin(lamb))
-    poscoor_ECEF_Y=r*(math.cos(u)*math.sin(lamb)+math.sin(u)*math.cos(i)*math.cos(lamb))
-    poscoor_ECEF_Z=r*math.sin(u)*math.sin(i)
+    poscoor_ECEF_X = r*(math.cos(u)*math.cos(lamb)-math.sin(u)*math.cos(i)*math.sin(lamb))
+    poscoor_ECEF_Y = r*(math.cos(u)*math.sin(lamb)+math.sin(u)*math.cos(i)*math.cos(lamb))
+    poscoor_ECEF_Z = r*math.sin(u)*math.sin(i)
     #输出坐标单位为m
     return poscoor_ECEF_X,poscoor_ECEF_Y,poscoor_ECEF_Z
 
@@ -79,7 +79,7 @@ def cal_ClockError_GPS_datetime(time,serial_no,brs):
     Parameters
     ----------
         time : datetime.datetime,所求时刻的datetime格式的GPS时间
-        brs : lsit[GPS_brdc_record class],所依据的广播星历记录
+        brs : list[GPS_brdc_record class],所依据的广播星历记录
     Returns
     -------
         clockerror ：卫星的钟差,单位s
@@ -87,8 +87,8 @@ def cal_ClockError_GPS_datetime(time,serial_no,brs):
     #筛选出最接近的一条记录
     br=RecordFilter.find_closest_record(brs,time,serial_no)   
     print(time,br.toc)
-    tc=TimeSystem.from_datetime_cal_GPStime_2(time)[1]-br.toe
-    print(tc,TimeSystem.from_datetime_cal_GPStime_2(time)[1],br.toe)
+    tc= TimeSystem.from_datetime_cal_GPSws(time)[1] - br.toe
+    print(tc, TimeSystem.from_datetime_cal_GPSws(time)[1], br.toe)
     clockerror=br.a0+br.a1*tc+br.a2*tc**2
     return clockerror
 
@@ -162,12 +162,12 @@ def cal_SatellitePosition_GPS_GPSws(time,serial_no,brs):
     return poscoor_ECEF_X, poscoor_ECEF_Y, poscoor_ECEF_Z
 
 # 以某条记录(GPSweek和GPSsecond)为基础,计算卫星钟差
-def cal_ClockError_GPS_GPSws(time, serial_no, brs):
+def cal_ClockError_GPS_GPSws(time, SVN, brs):
     """
     Parameters
     ----------
         time : GPSws,所求时刻的GPSws类的GPS时间
-        serial_no : int,卫星序列号即PRN值
+        SVN : str,卫星的SVN
         brs : list[GPS_brdc_record class],所依据的广播星历记录
     Returns
     -------
@@ -175,18 +175,19 @@ def cal_ClockError_GPS_GPSws(time, serial_no, brs):
     """ 
     # 筛选出最接近的一条记录
     datetime_time = TimeSystem.from_GPSws_cal_datetime_2(time)
-    br = RecordFilter.find_closest_record(brs, datetime_time, serial_no)
+    br = RecordFilter.find_closest_record(brs, datetime_time, SVN)
     tc = time.GpsSecond-br.toe
     clockerror = br.a0+br.a1*tc+br.a2*tc**2
     return clockerror
 
 # 以某条记录(GPSweek和GPSsecond)为基础,计算卫星钟差(包含相对论效应)
-def cal_ClockError_GPS_GPSws_withRelativisticEffect(time,serial_no,brs):
+def cal_ClockError_GPS_GPSws_withRelativisticEffect(time, SVN, brs):
     """
     Parameters
     ----------
         time : GPSws,所求时刻的GPSws类的GPS时间
-        brs : lsit[GPS_brdc_record class],所依据的广播星历记录
+        SVN : str,卫星的SVN号
+        brs : list[GPS_brdc_record class],所依据的广播星历记录
     Returns
     -------
         clockerror : 卫星钟差,单位s
@@ -194,7 +195,7 @@ def cal_ClockError_GPS_GPSws_withRelativisticEffect(time,serial_no,brs):
     # 筛选出最接近的一条记录
     # 由GPSws类数据得到datetime.datetime类型时间,便于筛选数据
     datetime_time = TimeSystem.from_GPSws_cal_datetime_2(time)
-    br = RecordFilter.find_closest_record(brs, datetime_time, serial_no)
+    br = RecordFilter.find_closest_record(brs, datetime_time, SVN)
     # (1)Time from ephemeris epoch toe
     tk = time.GpsSecond-br.toe
     # (2)Calculate the semimajor axis
@@ -215,6 +216,8 @@ def cal_ClockError_GPS_GPSws_withRelativisticEffect(time,serial_no,brs):
     clockerror = clockerror_biasdrift+clockerror_re
     return clockerror
 
+if __name__ == "__main__":
+    pass
 
 
 

@@ -70,7 +70,7 @@ def cal_XYZ_basedon_preciseephemeris(pe_records,the_time,the_prn,lagran_n=9):
             依次对应卫星X、Y、Z坐标
     """
     #筛选对应prn编号的卫星记录
-    prn_records=list(filter(lambda o:o.PRN==the_prn,pe_records))
+    prn_records=list(filter(lambda o: o.SVN == the_prn, pe_records))
     #获得拉格朗日插值所需要的最临近n个记录
     prn_records.sort(key=lambda o:abs(cal_delta_time(the_time,o.time)))
     the_records=prn_records[:lagran_n]
@@ -93,7 +93,7 @@ def cal_dT_basedon_preciseephemeris(pe_records,the_time,the_prn):
         dT : float,卫星钟差
     """
     #筛选对应prn编号的卫星记录
-    prn_records=list(filter(lambda o:o.PRN==the_prn,pe_records))
+    prn_records=list(filter(lambda o: o.SVN == the_prn, pe_records))
     #获得所需要的最临近2个记录
     prn_records.sort(key=lambda o:abs(cal_delta_time(the_time,o.time)))
     the_records=prn_records[:2]
@@ -124,7 +124,7 @@ def cal_dT_basedon_clk(clk_satellite_records,the_time,the_prn):
         dT : float,卫星钟差
     """
     #筛选对应prn编号的卫星记录
-    prn_records=list(filter(lambda o:o.PRN==the_prn,clk_satellite_records))
+    prn_records=list(filter(lambda o: o.SVN == the_prn, clk_satellite_records))
     #获得所需要的最临近2个记录
     prn_records.sort(key=lambda o:abs(cal_delta_time(the_time,o.time)))
     the_records=prn_records[:2]
