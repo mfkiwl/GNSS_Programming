@@ -35,13 +35,13 @@ def Ionospheric_Delay_Correction(record):
     P : 电离层改正后的伪距
     """
     # 如果两个频道有缺失,则返回“”
-    if record.data['P1']['observation'] == "" or record.data['P2']['observation'] == "":
+    if record.data['C1']['observation'] == "" or record.data['C2']['observation'] == "":
         print("数据缺失")
         P = ""
     # 如果两个频道都有数据,则返回电离层改正后的伪距观测值
     else:
-        P1 = int(record.data['P1']['observation'])
-        P2 = int(record.data['P2']['observation'])
+        P1 = int(record.data['C1']['observation'])
+        P2 = int(record.data['C2']['observation'])
         f1 = 1575.42  # Hz
         f2 = 1227.60  # Hz
         P = f1 ** 2 / (f1 ** 2 - f2 ** 2) * P1 - f2 ** 2 / (f1 ** 2 - f2 ** 2) * P2

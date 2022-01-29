@@ -358,6 +358,27 @@ def DD_onCarrierPhase_1known(station1_ob_records, station2_ob_records, br_record
         lamb = lamb_L1
         # 平差迭代次数计数
         no = 0
+
+        # 先大致计算各卫星所在位置(注:必须在站的初始位置较靠近真实坐标时才有效)
+        satellite_ele = {}
+        Tr1_GPSws = TimeSystem.GPSws(TimeSystem.from_datetime_cal_GPSws(Tr1)[0], TimeSystem.from_datetime_cal_GPSws(Tr1)[1])
+        Tr2_GPSws = TimeSystem.GPSws(TimeSystem.from_datetime_cal_GPSws(Tr2)[0], TimeSystem.from_datetime_cal_GPSws(Tr2)[1])
+        for SVN in available_SVNs:
+            coorX_Tr1, coorY_Tr1, coorZ_Tr1 = SatellitePosition.cal_SatellitePosition_GPS_GPSws(Tr1_GPSws, SVN, br_records)
+            ele_sta1_Tr1 = CoorTransform.cal_ele_and_A([X1, Y1, Z1], [coorX_Tr1, coorY_Tr1, coorZ_Tr1])[0]
+            ele_sta2_Tr1 = CoorTransform.cal_ele_and_A([X2, Y2, Z2], [coorX_Tr1, coorY_Tr1, coorZ_Tr1])[0]
+            coorX_Tr2, coorY_Tr2, coorZ_Tr2 = SatellitePosition.cal_SatellitePosition_GPS_GPSws(Tr2_GPSws, SVN, br_records)
+            ele_sta1_Tr2 = CoorTransform.cal_ele_and_A([X1, Y1, Z1], [coorX_Tr2, coorY_Tr2, coorZ_Tr2])[0]
+            ele_sta2_Tr2 = CoorTransform.cal_ele_and_A([X2, Y2, Z2], [coorX_Tr2, coorY_Tr2, coorZ_Tr2])[0]
+            ele_total = ele_sta1_Tr1 + ele_sta2_Tr1
+            satellite_ele[SVN] = ele_total
+
+        # 根据高度角选择最合适的基准卫星, 以及确定其他卫星
+        the_SVN = max(zip(satellite_ele.values(), satellite_ele.keys()))[1]
+        diff_SVNs = available_SVNs
+        diff_SVNs.remove(the_SVN)
+
+
         while True:
             # 如果超出平差迭代求解超出8次则跳出
             if no > 8:
@@ -370,7 +391,6 @@ def DD_onCarrierPhase_1known(station1_ob_records, station2_ob_records, br_record
             A2 = []
             l2 = []
 
-            the_SVN = available_SVNs[0]  # 卫星1
 
             # 获取卫星1的两站观测记录
             station1_Tr1_base_record = list(filter(lambda o: o.SVN == the_SVN, station1_Tr1_ob_records))[0]
@@ -378,7 +398,7 @@ def DD_onCarrierPhase_1known(station1_ob_records, station2_ob_records, br_record
             station1_Tr2_base_record = list(filter(lambda o: o.SVN == the_SVN, station1_Tr2_ob_records))[0]
             station2_Tr2_base_record = list(filter(lambda o: o.SVN == the_SVN, station2_Tr2_ob_records))[0]
 
-            for available_PRN in available_SVNs[1:]:  # 卫星2
+            for available_PRN in diff_SVNs:  # 卫星2
 
                 """
                 根据PRN对第一个历元两个站观测记录的的筛选
@@ -617,14 +637,14 @@ if __name__ == "__main__":
     # station1_observation_file = r"edata\obs\leij3100.20o"    # 已知站点 leij
     station2_observation_file = r"edata\obs\zim23100.20o"
     station1_observation_file = r"edata\obs\wab23100.20o"    # 已知站点 wab2
-    # station1_observation_file = r"edata\obs\zimm3100.20o"  # 已知站点 zim2
+    # station1_observation_file = r"edata\obs\zimm3100.20o"  # 已知站点 zimm
     broadcast_file = r"edata\sat_obit\brdc3100.20n"
     # 读入观测文件内容,得到类型对象列表
     knownStation_ob_records = DoFile.read_Rinex2_oFile(station1_observation_file)
     unknownStation_ob_records = DoFile.read_Rinex2_oFile(station2_observation_file)
     br_records = DoFile.read_GPS_nFile(broadcast_file)
     print("数据读取完毕！")
-    Tr = datetime.datetime(2020, 11, 5, 0, 0, 0)
+    Tr = datetime.datetime(2020, 11, 5, 0, 1, 0)
     # init_coor = [3658785.6000, 784471.1000, 5147870.7000]
     # init_coor = [4331297.3480, 567555.6390, 4633133.7280]      # zimm
     init_coor = [4331300.1600, 567537.0810, 4633133.5100]  # zim2
@@ -636,11 +656,11 @@ if __name__ == "__main__":
     # knownStation_coor = [4331297.3480, 567555.6390, 4633133.7280]  # zimm
     true_coors = []
     cal_coors = []
-    while Tr < datetime.datetime(2020, 11, 5, 1, 45, 16):
+    while Tr < datetime.datetime(2020, 11, 5, 23, 30, 00):
         Tr2 = Tr + datetime.timedelta(seconds=30*60)
         print(Tr.hour, Tr.minute, Tr.second)
         CoorXYZ, Q = DD_onCarrierPhase_1known(knownStation_ob_records, unknownStation_ob_records, br_records, Tr, Tr2,
-                                      knownStation_coor, init_coor, cutoff=5, ambi_fix=True)
+                                      knownStation_coor, init_coor, cutoff=10, ambi_fix=True)
         Xk, Yk, Zk = CoorXYZ
         cal_coors.append([Xk, Yk, Zk])
         # true_coors.append([0.365878555276965E+07, 0.784471127238666E+06, 0.514787071062059E+07])  # warn

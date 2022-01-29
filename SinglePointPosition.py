@@ -75,6 +75,27 @@ def cal_EmitTime_from_datetime(Tr, the_SVN, P, br_records, doCRC=True, c=2997924
 
     return ts, dts
 
+def observation_isnot_null(station_record, FreqBandList=['L1', 'C2']):
+    '''
+    station_record :  list[GPS_observation_record class] , 所使用观测文件读取 的各条记录
+    FreqBandList : list[str] , 检查数据是否为空的频率波段 (如 'C1','L2','P1' )
+    '''
+    isnot_null_flags = []
+    for band in FreqBandList:
+        # 判断波段的数据是否齐全
+        if not station_record.data.__contains__(band):
+            isnot_null_flag = False
+        elif station_record.data[band]['observation'] == "":
+            isnot_null_flag = False
+        else:
+            isnot_null_flag = True
+        isnot_null_flags.append(isnot_null_flag)
+    if False in isnot_null_flags:
+        result = False
+    else:
+        result = True
+    return result
+
 
 #基于广播星历数据进行单点定位
 def SPP_on_broadcastrecords(ob_records, br_records, Tr, doIDC=True, doTDC=True, doCRC=True, recalP=False,
@@ -82,7 +103,7 @@ def SPP_on_broadcastrecords(ob_records, br_records, Tr, doIDC=True, doTDC=True, 
     """
     ob_records : GPS_observation_record , 所使用的观测文件记录
     br_records : GPS_brdc_record , 所使用的卫星广播星历记录
-    Tr : 接收机接收到信号的时刻,GPS时刻
+    Tr : datetime.datetime , 接收机接收到信号的时刻,GPS时刻
     doIDC : bool , 是否进行电离层改正
     doTDC : bool , 是否进行对流层改正
     doCRC : bool , 是否进行相对论钟差改正
@@ -112,13 +133,13 @@ def SPP_on_broadcastrecords(ob_records, br_records, Tr, doIDC=True, doTDC=True, 
         l = []
         Ps = []
         for record in cal_based_record:
-
             # 如果所选观测值数据为空则跳过
-            if not bool(record.data['P1']['observation'] and record.data['P2']['observation']):
+            if not observation_isnot_null(record, ['C1', 'C2']):
                 continue
             else:
-                P = record.data['P1']['observation']
+                P = record.data['C1']['observation']
             the_svn = record.SVN
+            print(Tr, the_svn, type(P), P)
 
             '''根据接收时间,计算信号发射时间及此时卫星所在位置'''
             ts, dts = cal_EmitTime_from_datetime(Tr, the_svn, P, br_records, doCRC)
@@ -260,7 +281,7 @@ def cal_VDOP(QNEUt):
 
 
 # 计算(并绘制)NEU误差序列
-def cal_NEUerrors(true_coors, cal_coors, save_path=""):
+def cal_NEUerrors(true_coors, cal_coors, ylimit=None, save_path=""):
     """
         true_coors : [[Xs,Ys,Zs],……],真实坐标列表
         cal_coors : [[Xa,Ya,Za],……],计算坐标列表
@@ -284,12 +305,13 @@ def cal_NEUerrors(true_coors, cal_coors, save_path=""):
     plt.title("NEU误差序列图")
     if save_path != "":
         plt.savefig(save_path)
-    # plt.ylim(-0.1, 0.1)
+    if ylimit:
+        plt.ylim(-ylimit, ylimit)
     plt.show()
     return delta_N, delta_E, delta_U
 
 
-def cal_XYZerrors(true_coors, cal_coors, save_path=""):
+def cal_XYZerrors(true_coors, cal_coors, ylimit=None, save_path=""):
     """
         true_coors : [[Xs,Ys,Zs],……],真实坐标列表
         cal_coors : [[Xa,Ya,Za],……],计算坐标列表
@@ -311,9 +333,10 @@ def cal_XYZerrors(true_coors, cal_coors, save_path=""):
     plt.plot(delta_X, color="r", label="delta X / m")
     plt.plot(delta_Y, color="g", label="delta Y / m")
     plt.plot(delta_Z, color="b", label="delta Z / m")
-    # plt.ylim(-1, 1)
     plt.legend(loc='upper right')
     plt.title("XYZ误差序列图")
+    if ylimit:
+        plt.ylim(-ylimit, ylimit)
     if save_path != "":
         plt.savefig(save_path)
     plt.show()
@@ -336,9 +359,10 @@ def cal_NEUerror(true_coor, cal_coor):
 
 if __name__=="__main__":
     # observation_file=r"E:\大三下\卫星与导航定位\代码集合\Satellite_Navigation_and_Positioning\data\obs\warn3100.20o"
-    # observation_file=r"edata\obs\leij3100.20o"
-    observation_file = r"edata\obs\chan3100.20o"
+    # observation_file = r"edata\obs\leij3100.20o"
+    # observation_file = r"edata\obs\chan3100.20o"
     # observation_file = r"edata\obs\wab23100.20o"
+    observation_file = r"edata\obs\warn3100.20o"
     broadcast_file = r"edata\sat_obit\brdc3100.20n"
     # igs_file=r"E:\大三下\卫星与导航定位\代码集合\Satellite_Navigation_and_Positioning\data\sat_obit\igs21304.sp3"
     # clk_file=r"F:\360MoveData\Users\hp\Desktop\emr21304.clk"
@@ -349,26 +373,26 @@ if __name__=="__main__":
     # pe_records=DoFile.read_GPS_sp3File(igs_file)
     # clk_records=DoFile.read_GPS_clkFile(clk_file)[0]
     # 给入选定时刻
-    Tr = datetime.datetime(2020, 11, 5, 0, 30, 0)
-    # init_coor=[3658785.6000,784471.1000,5147870.7000]   #warn
-    init_coor=[-2674431.9143, 3757145.2969, 4391528.8732]   #chan
+    Tr = datetime.datetime(2020, 11, 5, 0, 1, 0)
+    init_coor=[3658785.6000, 784471.1000, 5147870.7000]   #warn
+    # init_coor=[-2674431.9143, 3757145.2969, 4391528.8732]   #chan
     # init_coor = [10, 10, 10]
     true_coors = []
     cal_coors = []
     vs = []
-    while Tr < datetime.datetime(2020, 11, 5, 2, 40, 16):
+    while Tr < datetime.datetime(2020, 11, 5, 23, 59, 00):
         # Xk,Yk,Zk,Q=SPP.SPP_on_broadcastfile(observation_file,broadcast_file,Tr)
         Xk, Yk, Zk, Q, v = SPP_on_broadcastrecords(ob_records, br_records, Tr, cutoff=15, init_coor=init_coor, recalP=True, doTDC=True, doIDC=True)
         cal_coors.append([Xk, Yk, Zk])
         vs.append(v)
         # print(Xk, Yk, Zk, Q, v)
-        # true_coors.append([0.365878555276965E+07,0.784471127238666E+06,0.514787071062059E+07])  #warn
+        true_coors.append([0.365878555276965E+07,0.784471127238666E+06,0.514787071062059E+07])  #warn
         # true_coors.append([0.389873613453103E+07,0.855345521080705E+06,0.495837257579542E+07])   #leij
-        true_coors.append([-0.267442768572702E+07, 0.375714305701559E+07, 0.439152148514515E+07])  #chan
+        # true_coors.append([-0.267442768572702E+07, 0.375714305701559E+07, 0.439152148514515E+07])  #chan
         # true_coors.append([4327318.2325, 566955.9585, 4636425.9246])  # wab2
         Tr += datetime.timedelta(seconds=30)
-    cal_NEUerrors(true_coors, cal_coors)
-    cal_XYZerrors(true_coors, cal_coors)
+    cal_NEUerrors(true_coors, cal_coors, ylimit=10)
+    cal_XYZerrors(true_coors, cal_coors, ylimit=10)
     # plt.plot(vs)
     # plt.show()
 

@@ -32,10 +32,10 @@ def observation_isvalid(obs_record, FreqBandList=['L1', 'L2']):
         else:
             isnot_null_flag = True
         isnot_null_flags.append(isnot_null_flag)
-        if False in isnot_null_flags:
-            result = False
-        else:
-            result = True
+    if False in isnot_null_flags:
+        result = False
+    else:
+        result = True
     return result
 
 def get_widelane_combination(obs_record, band1, band2, f1, f2):

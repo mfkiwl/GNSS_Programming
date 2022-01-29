@@ -382,7 +382,7 @@ def read_Rinex2_oFile(Rinex2_oFile):
                    data_detail['observation'] = ""
                data_detail['LLI'] = main_data[cursor+l][16*k-2:16*k-1].strip()
                data_detail['Signal strength'] = main_data[cursor+l][16*k-1:16*k].strip()
-               the_data["%s"%observation_types[i]]=data_detail
+               the_data["%s"%observation_types[i]] = data_detail
            obrecord = observation_record(the_svn, time, the_data)
            observation_records.append(obrecord)
            n_of_line+=1

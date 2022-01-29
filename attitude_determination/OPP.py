@@ -81,6 +81,7 @@ if __name__ == "__main__":
     f1 = np.array([-2.2775, 2.4688, 5.1465])    # CUCC -> CUBB
     f2 = np.array([3.9066, 1.7174, 0.1474])    # CUT0 -> CUBB
     f3 = np.array([-2.0202, 4.1602, 7.0336])    # CUAA -> CUT0
+    f4 = np.array([-6.1844, 0.7520, 4.9993])    # CUCC -> CUT0
 
     # 在空间指教坐标系下
     r = rota.from_euler('zyx', [5, 7, 10], degrees=True)
@@ -88,20 +89,31 @@ if __name__ == "__main__":
     # b1 = r.apply(f1)    # CUCC -> CUBB
     # b2 = r.apply(f2)    # CUT0 -> CUBB
     # b3 = r.apply(f3)    # CUAA -> CUT0
-    b1 = add_perturbation_to_vector(r.apply(f1), [0.1, 0.1, 0.1])    # CUCC -> CUBB
-    b2 = add_perturbation_to_vector(r.apply(f2), [0.1, 0.1, 0.1])   # CUT0 -> CUBB
-    b3 = add_perturbation_to_vector(r.apply(f3), [0.1, 0.1, 0.1])   # CUAA -> CUT0
+    # b4 = r.apply(f4)    # CUCC -> CUT0
+    # b1 = add_perturbation_to_vector(r.apply(f1), [0.1, 0.1, 0.1])    # CUCC -> CUBB
+    # b2 = add_perturbation_to_vector(r.apply(f2), [0.1, 0.1, 0.1])   # CUT0 -> CUBB
+    # b3 = add_perturbation_to_vector(r.apply(f3), [0.1, 0.1, 0.1])   # CUAA -> CUT0
+    # b4 = add_perturbation_to_vector(r.apply(f4), [0.1, 0.1, 0.1])    # CUCC -> CUT0
+    # b1 = add_perturbation_to_vector(r.apply(f1), [0.02, 0.02, 0.02])    # CUCC -> CUBB
+    # b2 = add_perturbation_to_vector(r.apply(f2), [0.02, 0.02, 0.02])   # CUT0 -> CUBB
+    # b3 = add_perturbation_to_vector(r.apply(f3), [0.02, 0.02, 0.02])   # CUAA -> CUT0
+    # b4 = add_perturbation_to_vector(r.apply(f4), [0.02, 0.02, 0.02])    # CUCC -> CUT0
+    b1 = add_perturbation_to_vector(r.apply(f1), [0.002, 0.002, 0.002])  # CUCC -> CUBB
+    b2 = add_perturbation_to_vector(r.apply(f2), [0.002, 0.002, 0.002])  # CUT0 -> CUBB
+    b3 = add_perturbation_to_vector(r.apply(f3), [0.002, 0.002, 0.002])  # CUAA -> CUT0
+    b4 = add_perturbation_to_vector(r.apply(f4), [0.002, 0.002, 0.002])    # CUCC -> CUT0
 
     # 组成向量矩阵
-    F = get_matrix_from_vectors([f1.tolist(), f2.tolist(), f3.tolist()])
-    B = get_matrix_from_vectors([b1.tolist(), b2.tolist(), b3.tolist()])
+    F = get_matrix_from_vectors([f1.tolist(), f2.tolist(), f3.tolist(), f4.tolist()])
+    B = get_matrix_from_vectors([b1.tolist(), b2.tolist(), b3.tolist(), b4.tolist()])
 
     # 解旋转
     # 用rota.align_vectors
-    r_check, loss = rota.align_vectors(B.T, F.T, [1, 2, 1])
+    r_check, loss = rota.align_vectors(B.T, F.T, [1, 1, 1, 1])
     # 用自己编写的函数
-    r_check_SVD = solve_OPP_withSVD(F, B, [1, 2, 1])
+    r_check_SVD = solve_OPP_withSVD(F, B, [1, 1, 1, 1])
     print(r_check_SVD)
+    print(r.as_euler('zyx', degrees=True))
     print(r_check.as_euler('zyx', degrees=True))
     print(rota.from_matrix(r_check_SVD).as_euler('zyx', degrees=True))
 
