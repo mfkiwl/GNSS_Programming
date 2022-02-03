@@ -17,7 +17,11 @@ comment：
 
 # import
 import utils.DoFile as DoFile
+import utils.CoorTransform as CoorTransform
 import matplotlib.pyplot as plt
+import numpy as np
+import random
+
 
 
 def paint_error_sequence_diagram(pefile,igsfile,prnlist,savepath):
@@ -64,3 +68,121 @@ def paint_error_sequence_diagram(pefile,igsfile,prnlist,savepath):
         plt.title(str(PRN)+" 误差序列图")
         plt.savefig(savepath+"\\"+str(PRN)+"误差序列图")
         plt.show()
+
+
+def paint_3dimensional_scatterplot_of_positionerrors_inXYZ(cal_coors: list, true_coors, kenamatic_mode: bool = False,
+                                                           xaixs_limit: tuple = (-1, 1), yaixs_limit: tuple = (-1, 1),
+                                                           zaixs_limit: tuple = (-1, 1)):
+    paint_flg = False
+    if kenamatic_mode:     # 对象坐标为动态
+        if len(cal_coors) != len(true_coors):
+            print('坐标计算结果与真实值个数不等！')
+            raise SystemExit
+        else:
+            x_errors = [(cal_coors[i][0] - true_coors[i][0]) for i in range(len(cal_coors))]
+            y_errors = [(cal_coors[i][1] - true_coors[i][1]) for i in range(len(cal_coors))]
+            z_errors = [(cal_coors[i][2] - true_coors[i][2]) for i in range(len(cal_coors))]
+            paint_flg = True
+    else:   # 对象坐标为静态
+        if len(true_coors) != 1:
+            print('静态坐标数量超过1！')
+        else:
+            x_errors = [(cal_coors[i][0] - true_coors[0][0]) for i in range(len(cal_coors))]
+            y_errors = [(cal_coors[i][1] - true_coors[0][1]) for i in range(len(cal_coors))]
+            z_errors = [(cal_coors[i][2] - true_coors[0][2]) for i in range(len(cal_coors))]
+            paint_flg = True
+    # 开始画图
+    if paint_flg:
+        ax = plt.figure().add_subplot(projection='3d')
+        # 绘制误差三维空间分布
+        ax.scatter(x_errors, y_errors, z_errors, c="b", label='position errors (unit: m)')
+        # 绘制在各平面上误差投影分布
+        # ax.scatter(x_errors, y_errors, zs=zaixs_limit[0], zdir='z', c="c", label='position errors in x-y plane (unit: m)')
+        # ax.scatter(x_errors, z_errors, zs=yaixs_limit[0], zdir='y', c="m", label='position errors in x-z plane (unit: m)')
+        # ax.scatter(y_errors, z_errors, zs=xaixs_limit[0], zdir='x', c="y", label='position errors in y-z plane (unit: m)')
+        ax.scatter(x_errors, y_errors, zs=zaixs_limit[0], zdir='z', c="c", marker='+')
+        ax.scatter(x_errors, z_errors, zs=yaixs_limit[0], zdir='y', c="m", marker='+')
+        ax.scatter(y_errors, z_errors, zs=xaixs_limit[0], zdir='x', c="y", marker='+')
+        # 显示参数设置
+        ax.legend(loc='upper right')
+        if xaixs_limit:
+            ax.set_xlim(xaixs_limit[0], xaixs_limit[1])
+        if yaixs_limit:
+            ax.set_ylim(yaixs_limit[0], yaixs_limit[1])
+        if zaixs_limit:
+            ax.set_zlim(zaixs_limit[0], zaixs_limit[1])
+        ax.set_xlabel('dX (m)')
+        ax.set_ylabel('dY (m)')
+        ax.set_zlabel('dZ (m)')
+    plt.show()
+
+
+def paint_3dimensional_scatterplot_of_positionerrors_inNEU(cal_coors: list, true_coors, kenamatic_mode: bool = False,
+                                                           xaixs_limit: tuple = (-1, 1), yaixs_limit: tuple = (-1, 1),
+                                                           zaixs_limit: tuple = (-1, 1)):
+    paint_flg = False
+    N_errors = []
+    E_errors = []
+    U_errors = []
+    if kenamatic_mode:     # 对象坐标为动态
+        if len(cal_coors) != len(true_coors):
+            print('坐标计算结果与真实值个数不等！')
+            raise SystemExit
+        else:
+            for i in range(len(cal_coors)):
+                n, e, u = CoorTransform.cal_NEU(true_coors[i], cal_coors[i])
+                N_errors.append(n)
+                E_errors.append(e)
+                U_errors.append(u)
+            paint_flg = True
+    else:   # 对象坐标为静态
+        if len(true_coors) != 1:
+            print('静态坐标数量超过1！')
+        else:
+            for i in range(len(cal_coors)):
+                n, e, u = CoorTransform.cal_NEU(true_coors[0], cal_coors[i])
+                N_errors.append(n)
+                E_errors.append(e)
+                U_errors.append(u)
+            paint_flg = True
+    # 开始画图
+    if paint_flg:
+        ax = plt.figure().add_subplot(projection='3d')
+        # 绘制误差三维空间分布
+        ax.scatter(N_errors, E_errors, U_errors, c="b", label='position errors in NEU (unit: m)')
+        # 绘制在各平面上误差投影分布
+        # ax.scatter(N_errors, E_errors, zs=zaixs_limit[0], zdir='z', c="c", marker=',', label='position errors in N-E plane (unit: m)')
+        # ax.scatter(N_errors, U_errors, zs=yaixs_limit[0], zdir='y', c="m", marker=',', label='position errors in N-U plane (unit: m)')
+        # ax.scatter(E_errors, U_errors, zs=xaixs_limit[0], zdir='x', c="y", marker=',', label='position errors in E-U plane (unit: m)')
+        ax.scatter(N_errors, E_errors, zs=zaixs_limit[0], zdir='z', c="c", marker='+')
+        ax.scatter(N_errors, U_errors, zs=yaixs_limit[0], zdir='y', c="m", marker='+')
+        ax.scatter(E_errors, U_errors, zs=xaixs_limit[0], zdir='x', c="y", marker='+')
+        # 显示参数设置
+        ax.legend(loc='upper right')
+        if xaixs_limit:
+            ax.set_xlim(xaixs_limit[0], xaixs_limit[1])
+        if yaixs_limit:
+            ax.set_ylim(yaixs_limit[0], yaixs_limit[1])
+        if zaixs_limit:
+            ax.set_zlim(zaixs_limit[0], zaixs_limit[1])
+        ax.set_xlabel('dN (m)')
+        ax.set_ylabel('dE (m)')
+        ax.set_zlabel('dU (m)')
+    plt.show()
+
+
+if __name__ == "__main__":
+    # 生成坐标
+    cal_coors = []
+    true_coors = []
+    true_coor = [[0.2, 0.2, 0.2]]
+    for i in range(100):
+        cal_coors.append([random.random(), random.random(), random.random()])
+        true_coors.append([random.random(), random.random(), random.random()])
+    paint_3dimensional_scatterplot_of_positionerrors_inXYZ(cal_coors, true_coor, kenamatic_mode=False)
+
+
+
+
+
+

@@ -470,7 +470,7 @@ def DD_onCarrierPhase_1known(station1_ob_records, station2_ob_records, br_record
                 # 构造Tr1部分系数阵
                 a_sta2_X =  (X2 - Xeci_sta2sat2_Tr1) / lou_sta2sat2_Tr10 - (X2 - Xeci_sta2sat1_Tr1) / lou_sta2sat1_Tr10
                 a_sta2_Y =  (Y2 - Yeci_sta2sat2_Tr1) / lou_sta2sat2_Tr10 - (Y2 - Yeci_sta2sat1_Tr1) / lou_sta2sat1_Tr10
-                a_sta2_Z =  (Z2 - Zeci_sta1sat2_Tr1) / lou_sta2sat2_Tr10 - (Z2 - Zeci_sta2sat1_Tr1) / lou_sta2sat1_Tr10
+                a_sta2_Z =  (Z2 - Zeci_sta2sat2_Tr1) / lou_sta2sat2_Tr10 - (Z2 - Zeci_sta2sat1_Tr1) / lou_sta2sat1_Tr10
                 A_Tr1 = [a_sta2_X, a_sta2_Y, a_sta2_Z]
                 # 构造常数阵
                 l_Tr1 = lamb * (L1obs_sta2sat2_Tr1 - L1obs_sta1sat2_Tr1 - L1obs_sta2sat1_Tr1 + L1obs_sta1sat1_Tr1) - lou_sta2sat2_Tr10 + lou_sta2sat1_Tr10 + lou_sta1sat2_Tr10 - lou_sta1sat1_Tr10
@@ -542,7 +542,7 @@ def DD_onCarrierPhase_1known(station1_ob_records, station2_ob_records, br_record
                 # 构造Tr2部分系数阵
                 a_sta2_X = (X2 - Xeci_sta2sat2_Tr2) / lou_sta2sat2_Tr20 - (X2 - Xeci_sta2sat1_Tr2) / lou_sta2sat1_Tr20
                 a_sta2_Y = (Y2 - Yeci_sta2sat2_Tr2) / lou_sta2sat2_Tr20 - (Y2 - Yeci_sta2sat1_Tr2) / lou_sta2sat1_Tr20
-                a_sta2_Z = (Z2 - Zeci_sta1sat2_Tr2) / lou_sta2sat2_Tr20 - (Z2 - Zeci_sta2sat1_Tr2) / lou_sta2sat1_Tr20
+                a_sta2_Z = (Z2 - Zeci_sta2sat2_Tr2) / lou_sta2sat2_Tr20 - (Z2 - Zeci_sta2sat1_Tr2) / lou_sta2sat1_Tr20
                 A_Tr2 = [a_sta2_X, a_sta2_Y, a_sta2_Z]
                 # 构造常数阵
                 l_Tr2 = lamb * (
@@ -656,7 +656,7 @@ if __name__ == "__main__":
     # knownStation_coor = [4331297.3480, 567555.6390, 4633133.7280]  # zimm
     true_coors = []
     cal_coors = []
-    while Tr < datetime.datetime(2020, 11, 5, 23, 30, 00):
+    while Tr < datetime.datetime(2020, 11, 5, 0, 30, 00):
         Tr2 = Tr + datetime.timedelta(seconds=30*60)
         print(Tr.hour, Tr.minute, Tr.second)
         CoorXYZ, Q = DD_onCarrierPhase_1known(knownStation_ob_records, unknownStation_ob_records, br_records, Tr, Tr2,
@@ -671,3 +671,4 @@ if __name__ == "__main__":
         # true_coors.append([-0.267442768572702E+07,0.375714305701559E+07,0.439152148514515E+07])  #chan
         Tr += datetime.timedelta(seconds=30)
     SPP.cal_NEUerrors(true_coors, cal_coors)
+    SPP.cal_XYZerrors(true_coors, cal_coors)

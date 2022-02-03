@@ -19,20 +19,29 @@ comment：
 import numpy as np
 from scipy.spatial.transform.rotation import Rotation as rota
 import random
-from OPP import *
+from attitude_determination.OPP import *
 import sympy
 
 
+def diagonalize_squarematrix(a, b):
+    # 构造合并后大小的矩阵
+    a_row = a.shape[0]
+    a_col = a.shape[1]
+    b_row = b.shape[0]
+    b_col = b.shape[1]
+    c = np.zeros((a_row + b_row, a_col + b_col))
+    c[:a_row, :a_col] = a
+    c[a_row:, a_col:] = b
+    return c
 
-
-def solve_WOPP_withLagrangianMultipliers(B, F, Q):
+def solve_WOPP_withLagrangianMultipliers(B, F, QBB):
     """
     [27.33] GNSS Carrier Phase-based Attitude Determination  p51
     A solution based on the Lagrangian multipliers method
     --------
     B: np.darray, 由列向量组成的参考坐标系框架下的向量矩阵 [b1, b2, b3....]
     F: np.darray, 由列向量组成的参考坐标系框架下的向量矩阵 [f1, f2, f3....]
-    Q: 基线解算的vc矩阵
+    QBB: 基线解算的vc矩阵
     """
     def get_lamb_matrix(lamb_list):
         lamb1, lamb2, lamb3, lamb4, lamb5, lamb6 = lamb_list
@@ -86,12 +95,23 @@ def solve_WOPP_withLagrangianMultipliers(B, F, Q):
         y = np.array(y)
         return y
 
+    def calculate_QvecR_check(F, QBB):
+        F_matrix_part = np.linalg.inv(F @ F.T) @ F
+        F_matrix = diagonalize_squarematrix(diagonalize_squarematrix(F_matrix_part, F_matrix_part),F_matrix_part)
+        Qvec_B = QBB
+        for i in range(B.shape[1]-1):
+            Qvec_B = diagonalize_squarematrix(Qvec_B, QBB)
+        Qr_check = F_matrix @ Qvec_B @ F_matrix.T
+        return Qr_check
+
+
     """
     以下为计算过程
     """
     # 根据最小二乘计算R_check
     R_check = B @ F.T @ np.linalg.inv(F @ F.T)
-    Q = np.eye(9)
+    Q = calculate_QvecR_check(F, QBB)
+    # Q = np.eye(9)
     # X = np.random.rand(9**2).reshape(9, 9)
     # X = np.triu(X)
     # X += X.T - np.diag(X.diagonal())
@@ -149,7 +169,8 @@ if __name__ == "__main__":
     B = get_matrix_from_vectors([b1.tolist(), b2.tolist(), b3.tolist(), b4.tolist()])
 
     # 解算WOPP问题
-    R, Qrr= solve_WOPP_withLagrangianMultipliers(B, F, 1)
+    Qbb = np.array([[0.02, 0, 0], [0, 0.02, 0], [0, 0, 0.02]])
+    R, Qrr= solve_WOPP_withLagrangianMultipliers(B, F, Qbb)
     print(R)
     print(Qrr)
 

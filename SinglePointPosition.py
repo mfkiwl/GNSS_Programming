@@ -380,7 +380,7 @@ if __name__=="__main__":
     true_coors = []
     cal_coors = []
     vs = []
-    while Tr < datetime.datetime(2020, 11, 5, 23, 59, 00):
+    while Tr < datetime.datetime(2020, 11, 5, 1, 59, 00):
         # Xk,Yk,Zk,Q=SPP.SPP_on_broadcastfile(observation_file,broadcast_file,Tr)
         Xk, Yk, Zk, Q, v = SPP_on_broadcastrecords(ob_records, br_records, Tr, cutoff=15, init_coor=init_coor, recalP=True, doTDC=True, doIDC=True)
         cal_coors.append([Xk, Yk, Zk])
