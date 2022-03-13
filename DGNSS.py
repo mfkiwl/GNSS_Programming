@@ -106,9 +106,9 @@ def SD_onPseudorange(knownStation_ob_records, unknownStation_ob_records, br_reco
             #     coorX,coorY,coorZ = SatellitePosition.cal_SatellitePosition_GPS_GPSws(ts, the_prn, br_records)
             #     if CRC:
             #         # 加入相对论钟差改正
-            #         dts2 = SatellitePosition.cal_ClockError_GPS_GPSws_withRelativisticEffect(ts, the_prn, br_records)
+            #         dts2 = SatellitePosition.cal_ClockError_GPSws_withRelativisticEffect(ts, the_prn, br_records)
             #     else:
-            #         dts2 = SatellitePosition.cal_ClockError_GPS_GPSws(ts,the_prn,br_records)
+            #         dts2 = SatellitePosition.cal_ClockError_GPSws(ts,the_prn,br_records)
             #     t_del = dts2-dts1
             #     dts1 = dts2
             #     # 此处计算消除卫星钟差后的时间

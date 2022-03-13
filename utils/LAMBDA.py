@@ -163,7 +163,7 @@ def decorrel(Qahat,ahat):
     # Tests on inputs ahat and Qahat
     
     # Is the Qahat symmetric ?
-    if ((Qahat-Qahat.T)<1e-1).all()==False:
+    if ((Qahat-Qahat.T)<1e-8).all()==False:
         print("Variance-covariance matrix of float estimated ambiguities " + \
               "is not symmetric!")
         raise SystemExit
@@ -803,7 +803,7 @@ def main(ahat,Qahat,method=1,ncands=2,P0=0.995,mu=1):
     # Tests on inputs ahat and Qahat
     
     # Is the Qahat symmetric ?
-    if ((Qahat-Qahat.T)<1e-1).all() == False:
+    if ((Qahat-Qahat.T)<1e-8).all() == False:
         print("Variance-covariance matrix of float estimated ambiguities " + \
               "is not symmetric!")
         raise SystemExit

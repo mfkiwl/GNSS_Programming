@@ -24,7 +24,7 @@ def cal_delta_time(time1, time2):
         delta_time = (time2-time1)
     return delta_time
 
-def find_closest_record(records, time, SVN):  # SVN为卫星编号,"G**"
+def find_closest_record(records, time, SVN):  # SVN为卫星编号,如"G**"
     n = 0
     while True:
         if records[n].SVN == SVN:

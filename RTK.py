@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from utils.const import *
 import utils.LAMBDA as LAMBDA
 from utils.MultiFrequencyCombinations import get_widelane_combination
+import utils.ResultAnalyse as ResultAnalyse
 
 
 def observation_isnot_null(station_record, FreqBandList=['L1', 'P2']):
@@ -57,11 +58,18 @@ def diagonalize_squarematrix(a, b):
     c[a_row:, a_col:] = b
     return c
 
+def diagonalize_several_squarematrix(matrixlist):
+    a = matrixlist[0]
+    for b in matrixlist[1:]:
+        c = diagonalize_squarematrix(a, b)
+        a = c
+    return c
+
 def get_DD_Pmatrix(nDD, sigma_factor=1):
     Pmatrix = np.full((nDD, nDD), -1).astype(float)
     for i in range(nDD):
         Pmatrix[i, i] = nDD
-    constparam = 1/ ((2*sigma_factor**2) * (nDD+1))
+    constparam = 1 / ((2*sigma_factor**2) * (nDD+1))
     Pmatrix *= constparam
     return Pmatrix
 
@@ -291,7 +299,7 @@ def DD_onCarrierPhase_2unknown(station1_ob_records, station2_ob_records, br_reco
 
 # 基于载波相位的双差，双历元 (其中一个观测站为已知坐标站点)
 def DD_onCarrierPhase_1known(station1_ob_records, station2_ob_records, br_records,
-                      Tr1, Tr2, station1_init_coor, station2_init_coor, CRC=True, cutoff=15.12345678,
+                      Tr1, Tr2, station1_init_coor, station2_init_coor=[2000,2000,2000], CRC=True, cutoff=15.12345678,
                              c=299792458, ambi_fix=True):
     """
     station1_ob_records : list[GPS_observation_record class] , 所使用的观测站1观测文件记录
@@ -338,8 +346,8 @@ def DD_onCarrierPhase_1known(station1_ob_records, station2_ob_records, br_record
 
     # 判断卫星数是否足够
     num_flag = True
-    print(original_SVNS)
-    print(available_SVNs)
+    print("all satellite:", original_SVNS)
+    print("the abled satellite:", available_SVNs)
     ob_num = len(available_SVNs)
     if ob_num < 4:
         num_flag = False
@@ -377,6 +385,7 @@ def DD_onCarrierPhase_1known(station1_ob_records, station2_ob_records, br_record
         the_SVN = max(zip(satellite_ele.values(), satellite_ele.keys()))[1]
         diff_SVNs = available_SVNs
         diff_SVNs.remove(the_SVN)
+        print("the base satellite:", the_SVN)
 
 
         while True:
@@ -384,6 +393,7 @@ def DD_onCarrierPhase_1known(station1_ob_records, station2_ob_records, br_record
             if no > 8:
                 break
             no += 1
+            final_SVNs = []
 
             # 初始化各历元矩阵
             A1 = []
@@ -539,6 +549,8 @@ def DD_onCarrierPhase_1known(station1_ob_records, station2_ob_records, br_record
                     if ele * 180 / math.pi < cutoff:
                         continue
 
+                final_SVNs.append(available_PRN)
+
                 # 构造Tr2部分系数阵
                 a_sta2_X = (X2 - Xeci_sta2sat2_Tr2) / lou_sta2sat2_Tr20 - (X2 - Xeci_sta2sat1_Tr2) / lou_sta2sat1_Tr20
                 a_sta2_Y = (Y2 - Yeci_sta2sat2_Tr2) / lou_sta2sat2_Tr20 - (Y2 - Yeci_sta2sat1_Tr2) / lou_sta2sat1_Tr20
@@ -596,7 +608,8 @@ def DD_onCarrierPhase_1known(station1_ob_records, station2_ob_records, br_record
             X2 += dX2
             Y2 += dY2
             Z2 += dZ2
-            print(no, " :", dX2, dY2, dZ2)
+            print(no, ": ", len(Pz)/2, "组 多余观测：", len(Pz)/2-3, [dX2, dY2, dZ2])
+            print("    differenced satellite:", final_SVNs)
             # 判断迭代停止条件
             if abs(dX2) < 1e-4 and abs(dY2) < 1e-4 and abs(dZ2) < 1e-4:
                 break
@@ -604,15 +617,17 @@ def DD_onCarrierPhase_1known(station1_ob_records, station2_ob_records, br_record
         # 进行模糊度固定
         if ambi_fix and qualitified_flag:
             # 调用LAMBDA方法进行整数估计
-            Qaa = Q[3:, 3:]
+            Qaa = get_symmetric_matrix(Q[3:, 3:])
             Qba = Q[:3, 3:]
+            Qbb = Q[:3, :3]
             N_fixed, sqnorm, Ps, Qzhat, Z, nfixed, mu = LAMBDA.main(N_float, Qaa)
             # 更新参数估计
             b_hat = np.array([X2, Y2, Z2])
             a_hat = N_float
             Coor = MAPmethod(b_hat, a_hat, Qaa, Qba, N_fixed[:, 0])
             X2, Y2, Z2 = Coor
-            # todo 计算MAP计算后的坐标方差
+            # 计算MAP计算后的坐标方差
+            Qcoor = Qbb - Qba @ np.linalg.inv(Qaa) @ Qba.T
         else:
             Coor = [X2, Y2, Z2]
 
@@ -624,7 +639,13 @@ def DD_onCarrierPhase_1known(station1_ob_records, station2_ob_records, br_record
     return [X2, Y2, Z2], Qcoor
 
 
-
+def get_symmetric_matrix(matrix, threshold=10e-1):
+    if ((matrix - matrix.T) < threshold).all():
+        sysmmetric_matrix = (matrix + matrix.T)/2
+        return sysmmetric_matrix
+    else:
+        print('matrix is not sysmmetric!')
+        return matrix
 
 
 
@@ -635,8 +656,10 @@ def DD_onCarrierPhase_1known(station1_ob_records, station2_ob_records, br_record
 if __name__ == "__main__":
     # station2_observation_file = r"edata\obs\ptbb3100.20o"
     # station1_observation_file = r"edata\obs\leij3100.20o"    # 已知站点 leij
-    station2_observation_file = r"edata\obs\zim23100.20o"
-    station1_observation_file = r"edata\obs\wab23100.20o"    # 已知站点 wab2
+    # station2_observation_file = r"edata\obs\zim23100.20o"    # 未知站点 zim2
+    station2_observation_file = r"edata\obs\zimm3100.20o"    # 未知站点 zimm
+    # station1_observation_file = r"edata\obs\wab23100.20o"    # 已知站点 wab2
+    station1_observation_file = r"edata\obs\zim23100.20o"  # 已知站点 zim2
     # station1_observation_file = r"edata\obs\zimm3100.20o"  # 已知站点 zimm
     broadcast_file = r"edata\sat_obit\brdc3100.20n"
     # 读入观测文件内容,得到类型对象列表
@@ -646,29 +669,31 @@ if __name__ == "__main__":
     print("数据读取完毕！")
     Tr = datetime.datetime(2020, 11, 5, 0, 1, 0)
     # init_coor = [3658785.6000, 784471.1000, 5147870.7000]
-    # init_coor = [4331297.3480, 567555.6390, 4633133.7280]      # zimm
-    init_coor = [4331300.1600, 567537.0810, 4633133.5100]  # zim2
+    init_coor = [4331297.3480, 567555.6390, 4633133.7280]      # zimm
+    # init_coor = [4331300.1600, 567537.0810, 4633133.5100]  # zim2
     # init_coor = SPP.SPP_on_broadcastrecords(unknownStation_ob_records, br_records, Tr+datetime.timedelta(seconds=60))[0:3]
     # init_coor = [0, 0, 0]
     # knownStation_coor = [0.389873613453103E+07, 0.855345521080705E+06, 0.495837257579542E+07]  # leij
-    knownStation_coor = [4327318.2325, 566955.9585, 4636425.9246]  # wab2
-    # knownStation_coor = [4331300.1600, 567537.0810, 4633133.5100]  # zim2
+    # knownStation_coor = [4327318.2325, 566955.9585, 4636425.9246]  # wab2
+    knownStation_coor = [4331300.1600, 567537.0810, 4633133.5100]  # zim2
     # knownStation_coor = [4331297.3480, 567555.6390, 4633133.7280]  # zimm
     true_coors = []
     cal_coors = []
-    while Tr < datetime.datetime(2020, 11, 5, 0, 30, 00):
+    while Tr < datetime.datetime(2020, 11, 5, 1, 30, 00):
         Tr2 = Tr + datetime.timedelta(seconds=30*60)
         print(Tr.hour, Tr.minute, Tr.second)
         CoorXYZ, Q = DD_onCarrierPhase_1known(knownStation_ob_records, unknownStation_ob_records, br_records, Tr, Tr2,
-                                      knownStation_coor, init_coor, cutoff=10, ambi_fix=True)
+                                      knownStation_coor, init_coor, cutoff=15, ambi_fix=True)
         Xk, Yk, Zk = CoorXYZ
         cal_coors.append([Xk, Yk, Zk])
         # true_coors.append([0.365878555276965E+07, 0.784471127238666E+06, 0.514787071062059E+07])  # warn
         # true_coors.append([3844059.7545, 709661.5334, 5023129.6933])     # ptbb
-        # true_coors.append([4331297.3480, 567555.6390, 4633133.7280])      # zimm
-        true_coors.append([4331300.1600, 567537.0810, 4633133.5100])  # zim2
+        true_coors.append([4331297.3480, 567555.6390, 4633133.7280])      # zimm
+        # true_coors.append([4331300.1600, 567537.0810, 4633133.5100])  # zim2
         # true_coors.append([0.389873613453103E+07,0.855345521080705E+06,0.495837257579542E+07])   #leij
         # true_coors.append([-0.267442768572702E+07,0.375714305701559E+07,0.439152148514515E+07])  #chan
         Tr += datetime.timedelta(seconds=30)
     SPP.cal_NEUerrors(true_coors, cal_coors)
     SPP.cal_XYZerrors(true_coors, cal_coors)
+    print("neu各方向RMSE:", ResultAnalyse.get_NEU_rmse(true_coors, cal_coors))
+    print("坐标RMSE:", ResultAnalyse.get_coor_rmse(true_coors, cal_coors))

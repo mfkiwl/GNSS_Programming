@@ -26,24 +26,24 @@ import matplotlib.pyplot as plt
 
 
 # 电离层改正
-def Ionospheric_Delay_Correction(record):
+def Ionospheric_Delay_Correction(record, band1='C1', band2='C2', f1=1575.42, f2=1227.60):
     """
     Parameters
     record : GPS_observation_record , 一条观测记录
+    band1 2 :选择波段
+    f1 2 : 波段频率，单位Hz
 
     Returns
     P : 电离层改正后的伪距
     """
     # 如果两个频道有缺失,则返回“”
-    if record.data['C1']['observation'] == "" or record.data['C2']['observation'] == "":
+    if record.data[band1]['observation'] == "" or record.data[band2]['observation'] == "":
         print("数据缺失")
         P = ""
     # 如果两个频道都有数据,则返回电离层改正后的伪距观测值
     else:
-        P1 = int(record.data['C1']['observation'])
-        P2 = int(record.data['C2']['observation'])
-        f1 = 1575.42  # Hz
-        f2 = 1227.60  # Hz
+        P1 = int(record.data[band1]['observation'])
+        P2 = int(record.data[band2]['observation'])
         P = f1 ** 2 / (f1 ** 2 - f2 ** 2) * P1 - f2 ** 2 / (f1 ** 2 - f2 ** 2) * P2
     return P
 

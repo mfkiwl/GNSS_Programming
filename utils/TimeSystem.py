@@ -62,6 +62,73 @@ class GPSws:
             GPSsecond_result -= 86400*7
         return GPSws(GPSweek_result, GPSsecond_result)
 
+
+'''记录BDSWeek和BDSsecond数据'''
+class BDSws:
+    def __init__(self, BDSWeek, BDSSecond):
+        self.BDSWeek = BDSWeek
+        self.BDSSecond = BDSSecond
+
+    def minus(self, second):
+        # 直接在原对象上进行减操作
+        self.BDSSecond = self.BDSSecond-second
+        while self.BDSSecond < 0:
+            self.BDSWeek -= 1
+            self.BDSSecond += 86400*7
+        return self
+
+    def cal_minus_result(self, second):
+        # 只计算减的结果，不对原对象进行操作
+        BDSweek_result = self.BDSWeek
+        BDSsecond_result = self.BDSSecond-second
+        while BDSsecond_result < 0:
+            BDSweek_result -= 1
+            BDSsecond_result += 86400*7
+        return BDSws(BDSweek_result, BDSsecond_result)
+
+    def add(self, second):
+        # 直接在原对象上进行减操作
+        self.BDSSecond = self.BDSSecond-second
+        while self.BDSSecond > 604800:
+            self.BDSWeek += 1
+            self.BDSSecond -= 86400*7
+        return self
+
+    def cal_add_result(self, second):
+        # 只计算减的结果，不对原对象进行操作
+        BDSweek_result=self.BDSWeekQ
+        BDSsecond_result=self.BDSSecond+second
+        while BDSsecond_result > 604800:
+            BDSweek_result += 1
+            BDSsecond_result -= 86400*7
+        return BDSws(BDSweek_result, BDSsecond_result)
+
+# GPSws和BDSws的转换
+def from_GPSws_get_BDSws(GPSws):
+    GPSweek = GPSws.GpsWeek
+    GPSsecond = GPSws.GpsSecond
+    BDSweek = GPSweek - 1356
+    BDSsecond = GPSsecond - 14
+    return BDSws(BDSweek, BDSsecond)
+
+def from_BDSws_get_GPSws(BDSws):
+    BDSweek = BDSws.BDSWeek
+    BDSsecond = BDSws.BDSSecond
+    GPSweek = BDSweek + 1356
+    GPSsecond = BDSsecond +14
+    return GPSws(GPSweek, GPSsecond)
+
+# 从GPSws和BDSws得到当周秒 (两者相同)
+def get_ephemeris_second(ws):
+    if isinstance(ws, GPSws):
+        ephemeris_second = ws.GpsSecond
+    elif isinstance(ws, BDSws):
+        ephemeris_second = ws.BDSSecond
+    else:
+        return
+    return ephemeris_second
+
+
 # 计算timedelta对象的second值
 def cal_deltatime_second(datetime_time):
     day = datetime_time.days
