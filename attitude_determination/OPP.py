@@ -104,14 +104,16 @@ if __name__ == "__main__":
     b4 = add_perturbation_to_vector(r.apply(f4), [0.002, 0.002, 0.002])    # CUCC -> CUT0
 
     # 组成向量矩阵
-    F = get_matrix_from_vectors([f1.tolist(), f2.tolist(), f3.tolist(), f4.tolist()])
-    B = get_matrix_from_vectors([b1.tolist(), b2.tolist(), b3.tolist(), b4.tolist()])
+    # F = get_matrix_from_vectors([f1.tolist(), f2.tolist(), f3.tolist(), f4.tolist()])
+    # B = get_matrix_from_vectors([b1.tolist(), b2.tolist(), b3.tolist(), b4.tolist()])
+    F = get_matrix_from_vectors([f1.tolist(), f2.tolist()])
+    B = get_matrix_from_vectors([b1.tolist(), b2.tolist()])
 
     # 解旋转
     # 用rota.align_vectors
-    r_check, loss = rota.align_vectors(B.T, F.T, [1, 1, 1, 1])
+    r_check, loss = rota.align_vectors(B.T, F.T, [1, 1])
     # 用自己编写的函数
-    r_check_SVD = solve_OPP_withSVD(F, B, [1, 1, 1, 1])
+    r_check_SVD = solve_OPP_withSVD(F, B, [1, 1])
     print(r_check_SVD)
     print(r.as_euler('zyx', degrees=True))
     print(r_check.as_euler('zyx', degrees=True))

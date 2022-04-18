@@ -73,6 +73,14 @@ def get_DD_Pmatrix(nDD, sigma_factor=1):
     Pmatrix *= constparam
     return Pmatrix
 
+def get_DD_Qmatrix(nDD, sigma):
+    covDD = np.full((nDD, nDD), 1).astype(float)
+    for i in range(nDD):
+        covDD[i, i] = 2
+    covDD = 2 * sigma**2 * covDD
+    return covDD
+
+
 def MAPmethod(b_hat, a_hat, Qaa, Qba, a_check):
     b_check = b_hat - Qba @ np.linalg.inv(Qaa) @ (a_hat - a_check)
     return b_check

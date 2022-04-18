@@ -30,7 +30,7 @@ def get_symmetric_matrix(matrix, threshold=10e-1):
 # 基于载波相位+伪距的双差，单历元 (其中一个观测站为已知坐标站点)
 def DD_onCarrierPhase_and_Pseudorange_1known(station1_ob_records, station2_ob_records, br_records,
                                              Tr, station1_init_coor, station2_init_coor, CRC=True, cutoff=15.12345678,
-                                             c=299792458, ambi_fix=True):
+                                             c=299792458, ambi_fix=False):
     """
     station1_ob_records : list[GPS_observation_record class] , 所使用的观测站1观测文件记录
     station2_ob_records : list[GPS_observation_record class] , 所使用的观测站2观测文件记录
@@ -112,6 +112,8 @@ def DD_onCarrierPhase_and_Pseudorange_1known(station1_ob_records, station2_ob_re
             l1 = []
             A2 = []
             l2 = []
+
+            P = []
 
             # 获取卫星1的两站观测记录
             station1_base_record = list(filter(lambda o: o.SVN == the_SVN, station1_ob_records))[0]
@@ -208,6 +210,7 @@ def DD_onCarrierPhase_and_Pseudorange_1known(station1_ob_records, station2_ob_re
                 l1.append(l_part1)
                 A2.append(A_part2)
                 l2.append(l_part2)
+                P.append(P1obs_sta2sat2 - P1obs_sta1sat2 - P1obs_sta2sat1 + P1obs_sta1sat1)
 
             qualitified_num = len(l1) + len(l2)
             if qualitified_num < 4:
@@ -230,8 +233,11 @@ def DD_onCarrierPhase_and_Pseudorange_1known(station1_ob_records, station2_ob_re
                 A.append(A2[i]+N_DD)
 
             # 构造权阵并求解
-            Ps1 = get_DD_Pmatrix(len(l1), 10000)     # 相位
-            Ps2 = get_DD_Pmatrix(len(l2), 1)     # 伪距
+            # Ps1 = get_DD_Pmatrix(len(l1), 100)     # 相位
+            # Ps2 = get_DD_Pmatrix(len(l2), 1)     # 伪距
+            Ps1 = np.linalg.inv(get_DD_Qmatrix(len(l1), 0.002))     # 相位
+            Ps2 = np.linalg.inv(get_DD_Qmatrix(len(l2), 5))     # 伪距
+
             Pz = diagonalize_squarematrix(Ps1, Ps2)
             A = np.array(A)
             l = np.array(l1 + l2)
@@ -241,6 +247,10 @@ def DD_onCarrierPhase_and_Pseudorange_1known(station1_ob_records, station2_ob_re
                 break
             x = np.linalg.inv(A.T @ Pz @ A) @ (A.T @ Pz @ l)
             Q = np.linalg.inv(A.T @ Pz @ A).astype(float)
+            V = A @ x - l
+            sigma0 = math.sqrt((V.T @ Pz @ V)/(len(l1)-3))
+            Qs = Q
+            # Qs = sigma0**2 * Q
             Qcoor = Q[:3, :3]
 
             # 更新参数
@@ -278,7 +288,7 @@ def DD_onCarrierPhase_and_Pseudorange_1known(station1_ob_records, station2_ob_re
         Qcoor = 10000
 
 
-    return [X2, Y2, Z2], Qcoor
+    return [X2, Y2, Z2], Qs, N_float, the_SVN, final_SVNs, P
 
 
 # 基于载波相位+伪距的双差，单历元 (其中一个观测站为已知坐标站点)，并且考虑电离层误差
@@ -548,7 +558,7 @@ if __name__ == "__main__":
     unknownStation_ob_records = DoFile.read_Rinex2_oFile(station2_observation_file)
     br_records = DoFile.read_GPS_nFile(broadcast_file)
     print("数据读取完毕！")
-    Tr = datetime.datetime(2020, 11, 5, 0, 1, 0)
+    Tr = datetime.datetime(2020, 11, 5, 0, 0, 0)
     # init_coor = [3658785.6000, 784471.1000, 5147870.7000]
     # init_coor = [4331297.3480, 567555.6390, 4633133.7280]      # zimm
     init_coor = [4331300.1600, 567537.0810, 4633133.5100]  # zim2
@@ -560,10 +570,10 @@ if __name__ == "__main__":
     knownStation_coor = [4331297.3480, 567555.6390, 4633133.7280]  # zimm
     true_coors = []
     cal_coors = []
-    while Tr < datetime.datetime(2020, 11, 5, 0, 59, 00):
+    while Tr < datetime.datetime(2020, 11, 5, 23, 0, 0):
         print(Tr.hour, Tr.minute, Tr.second)
-        CoorXYZ, Q = DD_onCarrierPhase_and_Pseudorange_1known(knownStation_ob_records, unknownStation_ob_records, br_records, Tr,
-                                      knownStation_coor, init_coor, cutoff=5, ambi_fix=True)
+        CoorXYZ, Q, N_float, the_SVN, final_SVNs, Pse= DD_onCarrierPhase_and_Pseudorange_1known(knownStation_ob_records, unknownStation_ob_records, br_records, Tr,
+                                      knownStation_coor, init_coor, ambi_fix=False)
         Xk, Yk, Zk = CoorXYZ
         cal_coors.append([Xk, Yk, Zk])
         # true_coors.append([0.365878555276965E+07, 0.784471127238666E+06, 0.514787071062059E+07])  # warn

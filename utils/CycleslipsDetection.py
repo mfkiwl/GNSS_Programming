@@ -12,3 +12,17 @@ comment:
     1. 周跳探测
 
 """
+
+
+
+def GF_detector(GFbefore, GFnow, threshold=0.05):
+    if abs(GFnow - GFbefore) > threshold:
+        cycle_slip_flag = True
+    else:
+        cycle_slip_flag = False
+    return cycle_slip_flag
+
+
+
+
+

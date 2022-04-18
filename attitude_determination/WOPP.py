@@ -165,8 +165,10 @@ if __name__ == "__main__":
 
 
     # 组成向量矩阵
-    F = get_matrix_from_vectors([f1.tolist(), f2.tolist(), f3.tolist(), f4.tolist()])
-    B = get_matrix_from_vectors([b1.tolist(), b2.tolist(), b3.tolist(), b4.tolist()])
+    # F = get_matrix_from_vectors([f1.tolist(), f2.tolist(), f3.tolist(), f4.tolist()])
+    # B = get_matrix_from_vectors([b1.tolist(), b2.tolist(), b3.tolist(), b4.tolist()])
+    F = get_matrix_from_vectors([f1.tolist(), f2.tolist(), f3.tolist()])
+    B = get_matrix_from_vectors([b1.tolist(), b2.tolist(), b3.tolist()])
 
     # 解算WOPP问题
     Qbb = np.array([[0.02, 0, 0], [0, 0.02, 0], [0, 0, 0.02]])
