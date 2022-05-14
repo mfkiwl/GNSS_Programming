@@ -25,6 +25,7 @@ import utils.CoorTransform as CoorTransform
 import utils.RecordFilter as RecordFilter
 from utils.ErrorReduction import *
 import matplotlib.pyplot as plt
+import utils.ResultAnalyse as ResultAnalyse
 
 
 def cal_EmitTime_from_datetime(Tr, the_SVN, P, br_records, doCRC=True, c=299792458):
@@ -40,7 +41,7 @@ def cal_EmitTime_from_datetime(Tr, the_SVN, P, br_records, doCRC=True, c=2997924
     '''
     # 将datetime格式时间转换为精度更高的自定义GPSws时间类
     w, s = TimeSystem.from_datetime_cal_GPSws(Tr)
-    Tr_GPSws = TimeSystem.GPSws(w, s)
+    Tr_GPSws = TimeSystem.GPSws(w, round(s))
     Ts = Tr_GPSws.cal_minus_result(P / c)
 
     # 以下标注的为有问题的计算方法 c!
@@ -72,7 +73,11 @@ def cal_EmitTime_from_datetime(Tr, the_SVN, P, br_records, doCRC=True, c=2997924
     # 此处计算消除卫星钟差后的时间
     ts = Ts.cal_minus_result(dts2)
     dts = SatellitePosition.cal_ClockError_GPSws_withRelativisticEffect(ts, the_SVN, br_records)
-    # dts = SatellitePosition.cal_ClockError_GPSws(Ts, the_SVN, br_records)   # 进行相对论改正是可以给带来8m左右的精度提升
+    # for i in range(2):
+    #     ts = ts.cal_minus_result(dts)
+    #     dts = SatellitePosition.cal_ClockError_GPSws_withRelativisticEffect(ts, the_SVN, br_records)
+    # ts = ts.cal_minus_result(5)
+    # dts = SatellitePosition.cal_ClockError_GPSws(Ts, the_SVN, br_records)   # 进行相对论改正是可以给带来8m左右的精度提升(来源论文)
     # dts = dts2    # dts和dts2相差非常小,10e-15s量级
 
     return ts, dts
@@ -138,10 +143,10 @@ def SPP_on_broadcastrecords(ob_records, br_records, Tr, doIDC=True, doTDC=True, 
         Ps = []
         for record in cal_based_record:
             # 如果所选观测值数据为空则跳过
-            if not observation_isnot_null(record, ['C1', 'C2']):
+            if not (record.managed_data_flag['L1_C'] and record.managed_data_flag['L2_C']):
                 continue
             else:
-                P = record.data['C1']['observation']
+                P = record.data['L1_C']['observation']
             the_svn = record.SVN
 
             '''根据接收时间,计算信号发射时间及此时卫星所在位置'''
@@ -162,7 +167,7 @@ def SPP_on_broadcastrecords(ob_records, br_records, Tr, doIDC=True, doTDC=True, 
 
             # 电离层改正
             if doIDC:
-                P = Ionospheric_Delay_Correction(record)
+                P = Ionospheric_Delay_Correction(record, band1='L1_C', band2='L2_C')
             if doTDC:
                 # 对流层延迟改正
                 # P = Tropospheric_Delay_Correction_Hopfield(P, [Xk, Yk, Zk], [Xeci, Yeci, Zeci])
@@ -479,7 +484,7 @@ def cal_VDOP(QNEUt):
 
 
 # 计算(并绘制)NEU误差序列
-def cal_NEUerrors(true_coors, cal_coors, ylimit=None, save_path=""):
+def cal_NEUerrors(true_coors, cal_coors, ylimit=None, T_series="", save_path=""):
     """
         true_coors : [[Xs,Ys,Zs],……],真实坐标列表
         cal_coors : [[Xa,Ya,Za],……],计算坐标列表
@@ -496,9 +501,14 @@ def cal_NEUerrors(true_coors, cal_coors, ylimit=None, save_path=""):
     # 绘图
     plt.rcParams['font.sans-serif'] = ['SimHei']
     plt.rcParams['axes.unicode_minus'] = False
-    plt.plot(delta_U, color="b", label="delta U / m")
-    plt.plot(delta_N, color="r", label="delta N / m")
-    plt.plot(delta_E, color="g", label="delta E / m")
+    if not T_series:
+        plt.plot(delta_U, color="b", label="delta U / m")
+        plt.plot(delta_N, color="r", label="delta N / m")
+        plt.plot(delta_E, color="g", label="delta E / m")
+    else:
+        plt.plot(T_series, delta_U, color="b", label="delta U / m")
+        plt.plot(T_series, delta_N, color="r", label="delta N / m")
+        plt.plot(T_series, delta_E, color="g", label="delta E / m")
     plt.legend(loc='upper right')
     plt.title("NEU误差序列图")
     if save_path != "":
@@ -586,9 +596,9 @@ if __name__=="__main__":
     # observation_file = r"edata\obs\leij3100.20o"
     # observation_file = r"edata\obs\chan3100.20o"
     # observation_file = r"edata\obs\wab23100.20o"
-    observation_file = r"edata\obs\warn3100.20o"
+    # observation_file = r"edata\obs\warn3100.20o"
     # observation_file = r"edata\obs\warn3120.20o"
-    # observation_file = r"edata\obs\zimm3100.20o"  # zimm
+    observation_file = r"edata\obs\zimm3100.20o"  # zimm
     # observation_file = r"edata\obs\zim23100.20o"  # zim2
     # observation_file = r"edata\obs\renix3\WARN00DEU_R_20203100000_01D_30S_MO.rnx"
     broadcast_file = r"edata\sat_obit\brdc3100.20n"
@@ -606,15 +616,15 @@ if __name__=="__main__":
     # clk_records=DoFile.read_GPS_clkFile(clk_file)[0]
     # 给入选定时刻
     Tr = datetime.datetime(2020, 11, 5, 0, 1, 0)
-    init_coor=[3658785.6000, 784471.1000, 5147870.7000]   #warn
+    # init_coor=[3658785.6000, 784471.1000, 5147870.7000]   #warn
     # init_coor=[-2674431.9143, 3757145.2969, 4391528.8732]   #chan
     # init_coor = [10, 10, 10]
-    # init_coor = [4331297.3480, 567555.6390, 4633133.7280]  # zimm
+    init_coor = [4331297.3480, 567555.6390, 4633133.7280]  # zimm
     # init_coor = [4331300.1600, 567537.0810, 4633133.5100]  # zim2
     true_coors = []
     cal_coors = []
     vs = []
-    while Tr < datetime.datetime(2020, 11, 5, 23, 59, 00):
+    while Tr < datetime.datetime(2020, 11, 5, 10, 59, 00):
         # Xk,Yk,Zk,Q=SPP.SPP_on_broadcastfile(observation_file,broadcast_file,Tr)
         Xk, Yk, Zk, Q, v = SPP_on_broadcastrecords(ob_records, br_records, Tr, init_coor=init_coor, recalP=True, doTDC=True, doIDC=True)
         # Xk, Yk, Zk, Q, v = SPP_on_mixed_broadcastrecords(ob_records, br_records, Tr, cutoff=15, init_coor=init_coor,
@@ -622,8 +632,8 @@ if __name__=="__main__":
         cal_coors.append([Xk, Yk, Zk])
         vs.append(v)
         # print(Xk, Yk, Zk, Q, v)
-        true_coors.append([0.365878555276965E+07, 0.784471127238666E+06, 0.514787071062059E+07])  #warn
-        # true_coors.append([4331297.3480, 567555.6390, 4633133.7280])  # zimm
+        # true_coors.append([0.365878555276965E+07, 0.784471127238666E+06, 0.514787071062059E+07])  #warn
+        true_coors.append([4331297.3480, 567555.6390, 4633133.7280])  # zimm
         # true_coors.append([4331300.1600, 567537.0810, 4633133.5100])  # zim2
         # true_coors.append([0.389873613453103E+07,0.855345521080705E+06,0.495837257579542E+07])   #leij
         # true_coors.append([-0.267442768572702E+07, 0.375714305701559E+07, 0.439152148514515E+07])  #chan
@@ -633,6 +643,8 @@ if __name__=="__main__":
     cal_XYZerrors(true_coors, cal_coors)
     # plt.plot(vs)
     # plt.show()
+    print("neu各方向RMSE:", ResultAnalyse.get_NEU_rmse(true_coors, cal_coors))
+    print("坐标RMSE:", ResultAnalyse.get_coor_rmse(true_coors, cal_coors))
 
 
 

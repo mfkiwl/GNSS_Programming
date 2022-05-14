@@ -61,7 +61,7 @@ def cal_NEU(stationcenter_coor,object_coor):
 def cal_ele_and_A(stationcenter_coor,object_coor):
     Xr, Yr, Zr = stationcenter_coor
     B, L, H = cal_XYZ2BLH(Xr, Yr, Zr)
-    R = np.array([[-sin(B)*cos(L), -sin(L), cos(B)*cos(L)], [-sin(B)*sin(L),cos(L),cos(B)*sin(L)], [cos(B),0,sin(B)]]).astype(float)
+    R = np.array([[-sin(B)*cos(L), -sin(L), cos(B)*cos(L)], [-sin(B)*sin(L), cos(L), cos(B)*sin(L)], [cos(B), 0, sin(B)]]).astype(float)
     dxyz = np.array(object_coor)-np.array(stationcenter_coor)
     NEU = np.linalg.inv(R)@dxyz
     N = NEU[0]
@@ -126,11 +126,23 @@ def cal_R_THS2TES(stationcenter_coor):
     """
     stationcenter_coor : [X,Y,Z]
     """
-    Xs,Ys,Zs=stationcenter_coor
-    B,L,H=cal_XYZ2BLH(Xs,Ys,Zs)
-    R=np.array([[-sin(B)*cos(L),-sin(L),cos(B)*cos(L)],[-sin(B)*sin(L),cos(L),cos(B)*sin(L)],[cos(B),0,sin(B)]])
+    Xs, Ys, Zs=stationcenter_coor
+    B, L, H=cal_XYZ2BLH(Xs, Ys, Zs)
+    R=np.array([[-sin(B)*cos(L), -sin(L), cos(B)*cos(L)], [-sin(B)*sin(L), cos(L), cos(B)*sin(L)], [cos(B), 0, sin(B)]])
     return R
 
 
 
+
+if __name__ == "__main__":
+    station_coor_list = [4331297.3480, 567555.6390, 4633133.7280]
+    sat_coor_list = [20192620.13782049, -2799062.894244392, 17045544.146022655]
+    dt = 0.06834646296872485
+    after_sat_coor_list = earth_rotation_correction(sat_coor_list, dt)
+    ele_before = cal_ele_and_A(station_coor_list, sat_coor_list)[0]
+    ele_after = cal_ele_and_A(station_coor_list, after_sat_coor_list)[0]
+    print("改正前高度角：", ele_before)
+    print("改正后高度角：", ele_after)
+    d_ele = (ele_after- ele_before) / math.pi * 180
+    print("高度角差距", d_ele)
 

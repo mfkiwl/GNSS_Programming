@@ -30,6 +30,7 @@ import utils.CycleslipsDetection as CycleslipsDetection
 import utils.DoFile as DoFile
 import utils.ResultAnalyse as ResultAnalyse
 import utils.TimeSystem as TimeSystem
+import SinglePointPosition as SPP
 
 # 双差观测值类
 class DD_recordclass():
@@ -113,7 +114,7 @@ class DD_records_atTr:
             if band in GPS_carrier_phase_list:
                 self.DD_ambiguitys[band] = []
                 self.DD_ambiguitys_noise[band] = []
-        self.amb_noise = 100000000
+        self.amb_noise = 100000000     # 涉及到新卫星或者周跳卫星加入后的效果，尽量给大
         self.DD_GF = {}
 
     def set_base_satellite(self, base_SVN, sta1obs_records_Tr, sta2obs_records_Tr):
@@ -185,6 +186,7 @@ class DD_records_atTr:
             band2 = 'L2L'
         qualitified_satellites_copy = self.qualitified_satellites.copy()
         if self.qualitified_satellites:
+            print(self.qualitified_satellites)
             # 先获得所有数据缺失卫星的原始索引
             svn_satellite_miss = []
             for svn in self.qualitified_satellites:
@@ -252,7 +254,7 @@ class DD_records_atTr:
                     new_in_flag = self.add_satellite(svn, sta1obs_records_Tr, sta2obs_records_Tr)
                     if new_in_flag:
                         new_in += 1
-            #
+            # 获取本历元所有卫星的双差GF组合观测值
             self.get_DD_GF_record(band1)
         else:
             new_in = 0
@@ -268,7 +270,7 @@ class DD_records_atTr:
             for svn in svns:
                 svn_index = self.qualitified_satellites.index(svn)
                 self.qualitified_satellites.remove(svn)
-                self.unqualitified_satellites.append(svn)
+                # self.unqualitified_satellites.append(svn)
                 for band in self.bands:
                     # # 删除双差观测记录（如有）
                     # self.DD_observations_data[band].pop(svn_index)
@@ -282,6 +284,7 @@ class DD_records_atTr:
             for svn in svns:
                 svn_index = self.qualitified_satellites.index(svn)
                 self.qualitified_satellites.remove(svn)
+                # self.unqualitified_satellites.append(svn)    周跳在add_satellite时还可以加入
                 for band in self.bands:
                     # 删除双差观测记录（如有）
                     self.DD_observations_data[band].pop(svn_index)
@@ -404,7 +407,7 @@ class ambiguity_transfer():
 
 
 # 卡尔曼滤波器
-class Kalman_Filter():
+class Kalman_Filter_with_baseline_constrained():
     def __init__(self, DD_records_atTr, band1, band2):
         """
         DD_records_atTr : DD_records_atTr class, 双差观测集合
@@ -467,18 +470,23 @@ class Kalman_Filter():
         n = len(self.DD_records.DD_observations_data[self.band1])
         H12 = np.eye(n) * get_lamb_from_band(self.band1)
         H22 = np.zeros((n, n))
-        H = np.block([[np.array(H11), H12], [np.array(H21), H22]])
-        hx = np.array(2*hx)
+        # 基线长约束观测方程的添加
+        l12 = CoorTransform.cal_distance(sta1_coor, sta2_coor)
+        H31 = np.array([(sta2_coor[0]-sta1_coor[0])/l12, (sta2_coor[1]-sta1_coor[1])/l12, (sta2_coor[2]-sta1_coor[2])/l12])
+        H32 = np.zeros((1, n))
+        # 合成整个设计矩阵
+        H = np.block([[np.array(H11), H12], [np.array(H21), H22], [H31, H32]])
+        hx = np.array(2*hx+[l12])
         return H, hx
 
-    def gety(self):
+    def gety(self, L):
         y1 = []
         y2 = []
         for DD_data in self.DD_records.DD_observations_data[self.band1]:
             y1.append(get_lamb_from_band(self.band1)*DD_data.DD_obs)
         for DD_data in self.DD_records.DD_observations_data[self.band2]:
             y2.append(DD_data.DD_obs)
-        y = np.array(y1+y2)
+        y = np.array(y1+y2+[L])
         return y
 
     def getx(self, sta2_coor):
@@ -495,10 +503,10 @@ class Kalman_Filter():
     def getQ(self):
         Qs = self.DD_records.DD_ambiguitys_noise[self.band1]
         # Q = np.diag([0.3, 0.5, 0.6] + Qs)
-        Q = np.diag([10, 10, 10] + Qs)
+        Q = np.diag([1000, 1000, 1000] + Qs)
         return Q
 
-    def getR(self, sigma1=0.05, sigma2=3):
+    def getR(self, sigma3, sigma1=0.002, sigma2=5):
         nDD = len(self.DD_records.DD_observations_data[self.band1])
         covDD = np.full((nDD, nDD), 1).astype(float)
         for i in range(nDD):
@@ -506,9 +514,11 @@ class Kalman_Filter():
         covDD1 = 2 * sigma1**2 * covDD
         covDD2 = 2 * sigma2**2 * covDD
         R = RTK.diagonalize_squarematrix(covDD1, covDD2)
+        R_l = np.array([[sigma3**2]])
+        R = RTK.diagonalize_squarematrix(R, R_l)
         return R
 
-    def ekf_estimation(self, P_before, sta1_coor, sta2_coor, nav_records):
+    def ekf_estimation(self, P_before, sta1_coor, sta2_coor, nav_records, baseline_length, l_sigma):
         # 预测
         F = self.getF()
         Q = self.getQ()
@@ -517,16 +527,18 @@ class Kalman_Filter():
 
         # 更新
         H, hx1 = self.getH(nav_records, sta1_coor, sta2_coor)
-        hx2 = get_lamb_from_band(self.band1) * np.array(x_pri[3:].tolist()+[0 for i in range(len(x_pri[3:].tolist()))])
+        hx2 = get_lamb_from_band(self.band1) * np.array(x_pri[3:].tolist()+[0 for i in range(len(x_pri[3:].tolist()))] + [0])
         hx = hx1+hx2
-        R = self.getR()
-        y = self.gety()
+        R = self.getR(l_sigma)
+        y = self.gety(baseline_length)
         K = P_pri @ H.T @ np.linalg.inv(H @ P_pri @ H.T + R)
         x_est = x_pri + K @ (y - hx)
         # x_est = x_pri + K @ (y - H @ x_pri)
         P_est = (np.eye(len(x_est)) - K @ H) @ P_pri
 
         return x_est, P_est
+
+
 
 
 def ambiguity_resolution_solution(Q, x):
@@ -582,7 +594,7 @@ def get_diaglist_from_matrix(matrix):
 #             DD_GF[svn] = 100
 
 
-def constaneously_RTK_withfilter(start_time, end_time, knownStation_ob_records, unknownStation_ob_records, br_records, knownStation_coor, unknownStation_init_coor, band1, band2, interval_time, ele_limit=10, amb_fix=False):
+def constaneously_RTK_withfilter_baseline_length_constrained(start_time, end_time, knownStation_ob_records, unknownStation_ob_records, br_records, knownStation_coor, unknownStation_init_coor, band1, band2, interval_time, baseline_length, l_sigma, ele_limit=10, amb_fix=False):
     """
     start_time : datetime.datetime , 时间段开始时刻
     end_time : datetime.datetime , 时间段结束时刻
@@ -591,11 +603,10 @@ def constaneously_RTK_withfilter(start_time, end_time, knownStation_ob_records, 
     br_records : 卫星星历数据
     knownStation_coor : 基准站坐标
     unknownStation_init_coor : 未知站坐标
-    band1 : 载波波段
-    band2 : 伪距波段
-    interval_time : 间隔时间, s
+    baseline_length : 基准站和未知站之间的基线长度
     """
     Tr = start_time
+
     coordinates = []
     # 第一个历元进行最小二乘解算，给初值
     sta2_coor, P, N_float, base_svn, diff_svns, Pse = RTK2.DD_onCarrierPhase_and_Pseudorange_1known(knownStation_ob_records, unknownStation_ob_records, br_records, Tr, knownStation_coor, unknownStation_init_coor, bands=[band1, band2], ambi_fix=False)
@@ -606,10 +617,6 @@ def constaneously_RTK_withfilter(start_time, end_time, knownStation_ob_records, 
         sta2_coor = sta2_coor.tolist()
     if isinstance(N_float, np.ndarray):
         N_float = N_float.tolist()
-    # if knownStation_ob_records.vision == "renix2":
-    #     amb_trans = ambiguity_transfer('L1',  N_float, base_svn, diff_svns, get_diaglist_from_matrix(P)[3:])
-    # elif knownStation_ob_records.vision == "renix3":
-    #     amb_trans = ambiguity_transfer('L1X', N_float, base_svn, diff_svns, get_diaglist_from_matrix(P)[3:])
     amb_trans = ambiguity_transfer(band1, N_float, base_svn, diff_svns, get_diaglist_from_matrix(P)[3:])
     amb_trans.update_ele(sta2_coor, Tr, br_records)
 
@@ -665,11 +672,11 @@ def constaneously_RTK_withfilter(start_time, end_time, knownStation_ob_records, 
             P = P_trans_matrix @ P @ P_trans_matrix.T
         # 更新由卫星数量增加导致的模糊度参数vc阵的变化
         if new_in != 0:  # 此历元有新增卫星
-            eyes = 10000 * np.eye(new_in)    # 前面的常数为新增卫星的方差
+            eyes = 100000 * np.eye(new_in)    # 前面的常数为新增卫星的方差
             P = RTK.diagonalize_squarematrix(P, eyes)
         # 开始估计
-        KM_estimator = Kalman_Filter(DD_records_collection, band1, band2)
-        x, P = KM_estimator.ekf_estimation(P, sta1_coor=knownStation_coor, sta2_coor=coor, nav_records=br_records)
+        KM_estimator = Kalman_Filter_with_baseline_constrained(DD_records_collection, band1, band2)
+        x, P = KM_estimator.ekf_estimation(P, sta1_coor=knownStation_coor, sta2_coor=coor, nav_records=br_records, baseline_length=baseline_length, l_sigma=l_sigma)
         print(Tr, x)
         DD_records_collection.DD_ambiguitys[band1] = x[3:].tolist()
         ambiguitys = DD_records_collection.DD_ambiguitys[band1]
@@ -690,6 +697,113 @@ def constaneously_RTK_withfilter(start_time, end_time, knownStation_ob_records, 
         n += 1
 
     return coordinates
+
+
+def constaneously_RTK_withfilter_SPP_baseline_length_constrained(start_time, end_time, knownStation_ob_records, unknownStation_ob_records, br_records, knownStation_coor, band1, band2, interval_time, baseline_length, ele_limit=10):
+    """
+    start_time : datetime.datetime , 时间段开始时刻
+    end_time : datetime.datetime , 时间段结束时刻
+    knownStation_ob_records : 基准站多时刻观测数据
+    unknownStation_ob_records : 未知站多时刻观测数据
+    br_records : 卫星星历数据
+    knownStation_coor : 基准站坐标
+    unknownStation_init_coor : 未知站坐标
+    baseline_length : 基准站和未知站之间的基线长度
+    """
+    Tr = start_time
+
+    coordinates = []
+    # 第一个历元进行最小二乘解算，给初值
+    knownStation_coor = list(SPP.SPP_on_broadcastrecords(knownStation_ob_records, br_records, Tr, init_coor=knownStation_coor)[:3])
+    unknownStation_init_coor = knownStation_coor
+    sta2_coor, P, N_float, base_svn, diff_svns, Pse = RTK2.DD_onCarrierPhase_and_Pseudorange_1known(knownStation_ob_records, unknownStation_ob_records, br_records, Tr, knownStation_coor, unknownStation_init_coor, bands=[band1, band2], ambi_fix=False)
+    coordinates.append(sta2_coor)
+    # 进行传递
+    if isinstance(sta2_coor, np.ndarray):
+        sta2_coor = sta2_coor.tolist()
+    if isinstance(N_float, np.ndarray):
+        N_float = N_float.tolist()
+    amb_trans = ambiguity_transfer(band1, N_float, base_svn, diff_svns, get_diaglist_from_matrix(P)[3:])
+    amb_trans.update_ele(sta2_coor, Tr, br_records)
+
+    DD_GF_collection = ''
+    Tr += datetime.timedelta(seconds=interval_time)
+    n = 0
+    while Tr < end_time:
+        knownStation_coor = list(SPP.SPP_on_broadcastrecords(knownStation_ob_records, br_records, Tr, init_coor=knownStation_coor)[:3])
+        coor = knownStation_coor
+        # 找到Tr时刻两个观测站观测记录
+        knownStation_ob_records_atTr = list(filter(lambda o:o.time == Tr and o.SVN[0] == "G" and o.data != "", knownStation_ob_records))
+        unknownStation_ob_records_atTr = list(filter(lambda o:o.time == Tr and o.SVN[0] == "G" and o.data != "", unknownStation_ob_records))
+        # 获取符合条件的所有svn
+        svn_Tr = []
+        knownsta_svn = [x.SVN for x in knownStation_ob_records_atTr]
+        unknownsta_svn = [x.SVN for x in unknownStation_ob_records_atTr]
+        for svn in knownsta_svn:
+            if svn in unknownsta_svn:
+                svn_Tr.append(svn)
+
+        # 计算各个卫星的高度角
+        sats_ele = {}
+        svn_ele_qualitified = []
+        w, s = TimeSystem.from_datetime_cal_GPSws(Tr)
+        t = TimeSystem.GPSws(w, s)
+        for svn in svn_Tr:
+            sat_coor = SatellitePosition.cal_SatellitePosition_GPS_GPSws(t, svn, br_records)
+            sats_ele[svn] = CoorTransform.cal_ele_and_A(coor, sat_coor)[0] * 180 / math.pi
+            if sats_ele[svn] > ele_limit:
+                svn_ele_qualitified.append(svn)
+        # 提取符合高度角要求的观测记录
+        knownStation_ob_records_atTr = list(filter(lambda o: o.SVN in svn_ele_qualitified, knownStation_ob_records_atTr))
+        unknownStation_ob_records_atTr = list(filter(lambda o: o.SVN in svn_ele_qualitified, unknownStation_ob_records_atTr))
+
+        # 初始化
+        DD_records_collection = DD_records_atTr(Tr, [band1, band2])
+        trans_matrix = DD_records_collection.set_base_satellite_from_ambiguity_transfer(amb_trans, knownStation_ob_records_atTr, unknownStation_ob_records_atTr, 10)
+        svn_removed_index, new_in = DD_records_collection.add_satellites(svn_ele_qualitified, knownStation_ob_records_atTr, unknownStation_ob_records_atTr, DD_GF_collection)
+        # 不带周跳探测
+        # svn_removed_index, new_in = DD_records_collection.add_satellites(svn_ele_qualitified, knownStation_ob_records_atTr, unknownStation_ob_records_atTr)
+        print("-2-:", svn_removed_index, new_in)
+
+        # 判断是否发生了参考星的变化
+        if np.all(trans_matrix == 0):    # 参考星不变
+            # 调整较上个历元被去除的卫星对应的vc阵
+            if svn_removed_index:  # 上个历元的卫星有缺失
+                P = remove_cross_from_matrix(P, svn_removed_index, svn_removed_index)
+        else:      # 参考星变化
+            # 调整较上个历元被去除的卫星对应的vc阵
+            if svn_removed_index:  # 上个历元的卫星要进行删减的
+                P = remove_cross_from_matrix(P, svn_removed_index, svn_removed_index)
+                # trans_matrix = np.delete(trans_matrix, svn_removed_index, axis=1)
+                trans_matrix = remove_cross_from_matrix(trans_matrix, svn_removed_index, svn_removed_index)
+            P_trans_matrix = RTK.diagonalize_squarematrix(np.eye(3), trans_matrix)
+            P = P_trans_matrix @ P @ P_trans_matrix.T
+        # 更新由卫星数量增加导致的模糊度参数vc阵的变化
+        if new_in != 0:  # 此历元有新增卫星
+            eyes = 10000 * np.eye(new_in)    # 前面的常数为新增卫星的方差
+            P = RTK.diagonalize_squarematrix(P, eyes)
+        # 开始估计
+        KM_estimator = Kalman_Filter_with_baseline_constrained(DD_records_collection, band1, band2)
+        x, P = KM_estimator.ekf_estimation(P, sta1_coor=knownStation_coor, sta2_coor=coor, nav_records=br_records, baseline_length=baseline_length)
+        print(Tr, x)
+        DD_records_collection.DD_ambiguitys[band1] = x[3:].tolist()
+        ambiguitys = DD_records_collection.DD_ambiguitys[band1]
+        base_svn = DD_records_collection.base_svn
+        satellites = DD_records_collection.qualitified_satellites
+        amb_nos = [0.000001 for i in range(len(P) - 3)]
+        amb_trans = ambiguity_transfer(band1, ambiguitys, base_svn, satellites, amb_nos)
+        DD_GF_collection = DD_records_collection.DD_GF
+
+        # 固定模糊度
+        coor = ambiguity_resolution_solution(P, x)
+        # coor = x[:3].tolist()
+        coordinates.append(coor)
+        Tr += datetime.timedelta(seconds=interval_time)
+        amb_trans.update_ele(coor, Tr, br_records)
+        n += 1
+
+    return coordinates
+
 
 
 def remove_cross_from_matrix(matrix, row_index_list, col_index_list):
@@ -716,11 +830,12 @@ if __name__ == '__main__':
     knownStation_coor = [4331300.1600, 567537.0810, 4633133.5100]  # zim2
     # knownStation_coor = [4327318.2325, 566955.9585, 4636425.9246]  # wab2
     init_coor = [4331297.3480, 567555.6390, 4633133.7280]  # zimm
+    l = CoorTransform.cal_distance(knownStation_coor, init_coor)
 
 
     strat_time = datetime.datetime(2020, 11, 5, 0, 0, 0)
     end_time = datetime.datetime(2020, 11, 5, 23, 59, 0)
-    cal_coors = constaneously_RTK_withfilter(strat_time, end_time, knownStation_ob_records, unknownStation_ob_records, br_records, knownStation_coor, init_coor, 'L1', 'P2', 30, ele_limit=10, amb_fix=False)
+    cal_coors = constaneously_RTK_withfilter_baseline_length_constrained(strat_time, end_time, knownStation_ob_records, unknownStation_ob_records, br_records, knownStation_coor, init_coor, "L1", "P2", 30, l, 0.1, ele_limit=7, amb_fix=True)
     true_coors = [init_coor for i in range(len(cal_coors))]
 
     SPP.cal_NEUerrors(true_coors, cal_coors)

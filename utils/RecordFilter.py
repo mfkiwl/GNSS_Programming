@@ -32,6 +32,8 @@ def find_closest_record(records, time, SVN):  # SVN为卫星编号,如"G**"
             closest_record = records[n]
             break
         n += 1
+        if n==len(records):
+            print("找不到符合要求的"+SVN+"卫星观测数据！")
     record_time = records[n].toc
     delta_time_min = cal_delta_time(time, record_time)
     for i in range(n+1, len(records)):

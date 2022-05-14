@@ -30,7 +30,7 @@ def cal_SatellitePosition_GPS_datetime(time, serial_no, brs):
     """
     Parameters
     ----------
-        UTCtime : datetime.datetime,所求时刻的datetime格式的GPS时间
+        time : datetime.datetime,所求时刻的datetime格式的GPS时间
         brs : list[GPS_brdc_record class],所依据的广播星历记录
     Returns
     -------
@@ -111,7 +111,7 @@ def cal_SatellitePosition_GPS_GPSws(time,serial_no,brs):
     Parameters
     ----------
         time : GPSws,所求时刻的GPSws类的GPS时间
-        brs : lsit[GPS_brdc_record class],所依据的广播星历记录
+        brs : list[GPS_brdc_record class],所依据的广播星历记录
     Returns
     -------
         X,Y,Z ：卫星的三维坐标(单位为m)
@@ -123,7 +123,8 @@ def cal_SatellitePosition_GPS_GPSws(time,serial_no,brs):
     # (1)Time from ephemeris epoch toe
     tk = time.GpsSecond-br.toe
     if abs(tk) > 7200:
-        print('效果可能较差!')
+        print(serial_no+'卫星位置计算效果可能较差!')
+    # 必须考虑到一周的开始或结束的交叉时间
     if tk > 302400:
         tk = tk - 604800
     elif tk < -302400:
@@ -287,7 +288,7 @@ def cal_ClockError_GPSws_withRelativisticEffect(time, SVN, brs):
     # 计算钟差相对论效应部分
     clockerror_re = -4.443e-10*br.e*math.sqrt(a)*math.sin(Ek)
     # 合并钟差
-    clockerror = clockerror_biasdrift+clockerror_re
+    clockerror = clockerror_biasdrift + clockerror_re
     return clockerror
 
 if __name__ == "__main__":

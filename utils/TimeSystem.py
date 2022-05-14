@@ -24,9 +24,15 @@ import datetime
 
 '''记录GpsWeek和GpsSecond数据'''
 class GPSws:
-    def __init__(self, GpsWeek, GpsSecond):
-        self.GpsWeek = GpsWeek
-        self.GpsSecond = GpsSecond
+    def __init__(self, GpsWeek="", GpsSecond=""):
+        if GpsWeek!="" and GpsSecond!="":
+            self.GpsWeek = GpsWeek
+            self.GpsSecond = GpsSecond
+
+    def from_GPSdatetime(self, GPSdatetime):
+        GPS_start_time = datetime.datetime()
+        # todo: 完成GPSdatetime和GPSws之间的转换
+
 
     def minus(self, second):
         # 直接在原对象上进行减操作
@@ -156,7 +162,7 @@ def from_datetime_cal_JD(date_time):
     """
     Parameters
     ----------
-        UTCtime <某个日期格式时间,type->datetime.datetime>
+        datetime <某个日期格式时间,type->datetime.datetime>
     Returns
     -------
         JD <对应的儒略日时间>
@@ -171,6 +177,7 @@ def from_datetime_cal_JD(date_time):
     microsecond = date_time.microsecond
     # 将minute和second化入hour
     H = hour+minute/60+(second+microsecond/1000000)/3600
+    # H = hour + minute / 60
     if M <= 2:
         y = Y-1
         m = M+12
@@ -181,7 +188,7 @@ def from_datetime_cal_JD(date_time):
     return JD
 
 
-# 由儒略日JD时间计算date_time时间的年月日
+# 由儒略日JD时间计算GPS_date_time时间的年月日
 def from_JD_cal_datetime(JD):
     a = int(JD+0.5)
     b = a+1537
@@ -198,7 +205,7 @@ def from_JD_cal_datetime(JD):
     return date_time
 
 
-#由date_time时间计算GPS周和GPS秒
+#由GPS的date_time时间计算GPS周和GPS秒
 def from_datetime_cal_GPSws(datetime):
     JD = from_datetime_cal_JD(datetime)
     GPS_week, GPS_second = from_JD_cal_GPStime(JD)
@@ -218,7 +225,7 @@ def from_GPStime_cal_JD(GPS_week, GPS_second):
     JD = GPS_second/86400.0 + 7*GPS_week + 2444244.5
     return JD
 
-#由GPS周和GPS秒计算datetime时间
+#由GPS周和GPS秒计算GPS的datetime时间
 def from_GPSws_cal_datetime_2(GPSws):
     GPS_week = GPSws.GpsWeek
     GPS_second = GPSws.GpsSecond

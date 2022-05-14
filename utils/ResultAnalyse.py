@@ -10,12 +10,14 @@
 
 comment：
     1.计算结果的均方根误差
-    2.
+
 
 """
 #import module
 import math
 import utils.CoorTransform as CoorTransform
+
+
 
 # 计算平均值
 def get_average(records):
@@ -61,8 +63,8 @@ def get_rmse(records_real, records_predict):
     mse = get_mse(records_real, records_predict)
     if mse:
         return math.sqrt(mse)
-    else:
-        print('数据列表长度不相符')
+    # else:
+    #     print('数据列表长度不相符')
 
 def get_mae(records_real, records_predict):
     """
@@ -117,6 +119,11 @@ def get_coor_rmse(true_coors, cal_coors):
         delta_d.append(d)
     rms_d = get_rms(delta_d)
     return rms_d
+
+
+
+
+
 
 
 

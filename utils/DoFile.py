@@ -38,10 +38,14 @@ import math
 
 #将文件数据中的科学计数法底数"D",变为"e" 
 #如 3.234D+10 -> 3.234e+10
-def parse_Dstring(D_string):
+def parse_Dstring_intofloat(D_string):
     e_string=D_string.replace("D","e")
     e_data=float(e_string)
     return e_data
+
+def parse_Dstring(D_string):
+    e_string=D_string.replace("D","e")
+    return e_string
 
 #
 def timeString2UTC_1(timeString):
@@ -100,39 +104,39 @@ class GPS_brdc_record():
         #self.serial_no=int(data[0][0:2])
         self.SVN=get_standard_SVN("G", data[0][0:2])
         self.toc=timeString2UTC_1(data[0][2:22])
-        self.a0=parse_Dstring(data[0][22:41])
-        self.a1=parse_Dstring(data[0][41:60])
-        self.a2=parse_Dstring(data[0][60:79])
+        self.a0=parse_Dstring_intofloat(data[0][22:41])
+        self.a1=parse_Dstring_intofloat(data[0][41:60])
+        self.a2=parse_Dstring_intofloat(data[0][60:79])
         #解析第二行
-        self.IODE=parse_Dstring(data[1][3:22])
-        self.Crs=parse_Dstring(data[1][22:41])
-        self.delta_n=parse_Dstring(data[1][41:60])
-        self.M0=parse_Dstring(data[1][60:79])
+        self.IODE=parse_Dstring_intofloat(data[1][3:22])
+        self.Crs=parse_Dstring_intofloat(data[1][22:41])
+        self.delta_n=parse_Dstring_intofloat(data[1][41:60])
+        self.M0=parse_Dstring_intofloat(data[1][60:79])
         #解析第三行
-        self.Cuc=parse_Dstring(data[2][3:22])
-        self.e=parse_Dstring(data[2][22:41])
-        self.Cus=parse_Dstring(data[2][41:60])
-        self.sqrt_a=parse_Dstring(data[2][60:79])
+        self.Cuc=parse_Dstring_intofloat(data[2][3:22])
+        self.e=parse_Dstring_intofloat(data[2][22:41])
+        self.Cus=parse_Dstring_intofloat(data[2][41:60])
+        self.sqrt_a=parse_Dstring_intofloat(data[2][60:79])
         #解析第四行
-        self.toe=parse_Dstring(data[3][3:22])
-        self.Cic=parse_Dstring(data[3][22:41])
-        self.omega0=parse_Dstring(data[3][41:60])
-        self.Cis=parse_Dstring(data[3][60:79])
+        self.toe=parse_Dstring_intofloat(data[3][3:22])
+        self.Cic=parse_Dstring_intofloat(data[3][22:41])
+        self.omega0=parse_Dstring_intofloat(data[3][41:60])
+        self.Cis=parse_Dstring_intofloat(data[3][60:79])
         #解析第五行
-        self.i0=parse_Dstring(data[4][3:22])
-        self.Crc=parse_Dstring(data[4][22:41])
-        self.w=parse_Dstring(data[4][41:60])
-        self.omega_dot=parse_Dstring(data[4][60:79])
+        self.i0=parse_Dstring_intofloat(data[4][3:22])
+        self.Crc=parse_Dstring_intofloat(data[4][22:41])
+        self.w=parse_Dstring_intofloat(data[4][41:60])
+        self.omega_dot=parse_Dstring_intofloat(data[4][60:79])
         #解析第六行
-        self.i_dot=parse_Dstring(data[5][3:22])
-        self.Code_L2=parse_Dstring(data[5][22:41])
-        self.GPS_week=parse_Dstring(data[5][41:60])
-        self.L2_flag=parse_Dstring(data[5][60:79])
+        self.i_dot=parse_Dstring_intofloat(data[5][3:22])
+        self.Code_L2=parse_Dstring_intofloat(data[5][22:41])
+        self.GPS_week=parse_Dstring_intofloat(data[5][41:60])
+        self.L2_flag=parse_Dstring_intofloat(data[5][60:79])
         #解析第七行
-        self.SV_accuracy=parse_Dstring(data[6][3:22])
-        self.SV_health=parse_Dstring(data[6][22:41])
-        self.TGD=parse_Dstring(data[6][41:60])
-        self.IODC=parse_Dstring(data[6][60:79])
+        self.SV_accuracy=parse_Dstring_intofloat(data[6][3:22])
+        self.SV_health=parse_Dstring_intofloat(data[6][22:41])
+        self.TGD=parse_Dstring_intofloat(data[6][41:60])
+        self.IODC=parse_Dstring_intofloat(data[6][60:79])
 
 
 
@@ -147,7 +151,7 @@ def read_GPS_nFile(GPS_nFile, health_control=True):
     -------
         list[GPS_brdc_record class]
     """
-    nf=open(GPS_nFile,"r")
+    nf=open(GPS_nFile, "r")
     GPS_brdc_records=[]     #存储GPS_brdc_record的列表
     #读取文件头
     linedata=nf.readline()
@@ -165,6 +169,7 @@ def read_GPS_nFile(GPS_nFile, health_control=True):
             if record.SV_health == 0:
                 GPS_brdc_records.append(record)
             else:
+                GPS_brdc_records.append(record)
                 print(str(record.toe)+"时刻卫星%s不够健康"%record.SVN)
         else:
             GPS_brdc_records.append(record)
@@ -176,45 +181,56 @@ def read_GPS_nFile(GPS_nFile, health_control=True):
 # 定义存储各系统导航星历单条记录的行数
 navigation_record_lines_number = {'G': 8, 'C': 8, 'E': 8, 'R': 4, 'J': 8, 'S': 4, 'I': 8}
 
+def getfloat(floatstring):
+    floatstring = parse_Dstring(floatstring)
+    if floatstring[:2] == "-.":
+        float_obj = float(floatstring[0]+ '0' +floatstring[1:])
+    elif floatstring.strip() == "":
+        float_obj = ""
+    else:
+        float_obj = float(floatstring)
+    return float_obj
+
+
 class Renix304_navigation_record_GPS():
     def __init__(self, data):
         self.system = 'G'
         # 解析第一行
         self.SVN=data[0][0:3]
         self.toc=timeString2UTC_2(data[0][3:23])
-        self.a0=float(data[0][23:42])
-        self.a1=float(data[0][42:61])
-        self.a2=float(data[0][61:80])
+        self.a0=getfloat(data[0][23:42])
+        self.a1=getfloat(data[0][42:61])
+        self.a2=getfloat(data[0][61:80])
         # 解析第二行
-        self.IODE=float(data[1][4:23])
-        self.Crs=float(data[1][23:42])
-        self.delta_n=float(data[1][42:61])
-        self.M0=float(data[1][61:80])
+        self.IODE=getfloat(data[1][4:23])
+        self.Crs=getfloat(data[1][23:42])
+        self.delta_n=getfloat(data[1][42:61])
+        self.M0=getfloat(data[1][61:80])
         # 解析第三行
-        self.Cuc=float(data[2][4:23])
-        self.e=float(data[2][23:42])
-        self.Cus=float(data[2][42:61])
-        self.sqrt_a=float(data[2][61:80])
+        self.Cuc=getfloat(data[2][4:23])
+        self.e=getfloat(data[2][23:42])
+        self.Cus=getfloat(data[2][42:61])
+        self.sqrt_a=getfloat(data[2][61:80])
         # 解析第四行
-        self.toe=float(data[3][4:23])
-        self.Cic=float(data[3][23:42])
-        self.omega0=float(data[3][42:61])
-        self.Cis=float(data[3][61:80])
+        self.toe=getfloat(data[3][4:23])
+        self.Cic=getfloat(data[3][23:42])
+        self.omega0=getfloat(data[3][42:61])
+        self.Cis=getfloat(data[3][61:80])
         # 解析第五行
-        self.i0=float(data[4][4:23])
-        self.Crc=float(data[4][23:42])
-        self.w=float(data[4][42:61])
-        self.omega_dot=float(data[4][61:80])
+        self.i0=getfloat(data[4][4:23])
+        self.Crc=getfloat(data[4][23:42])
+        self.w=getfloat(data[4][42:61])
+        self.omega_dot=getfloat(data[4][61:80])
         # 解析第六行
-        self.i_dot=float(data[5][4:23])
-        self.Code_L2=float(data[5][23:42])
-        self.GPS_week=float(data[5][42:61])
-        self.L2_flag=float(data[5][61:80])
+        self.i_dot=getfloat(data[5][4:23])
+        self.Code_L2=getfloat(data[5][23:42])
+        self.GPS_week=getfloat(data[5][42:61])
+        self.L2_flag=getfloat(data[5][61:80])
         #解析第七行
-        self.SV_accuracy=float(data[6][4:23])
-        self.SV_health=float(data[6][23:42])
-        self.TGD=float(data[6][42:61])
-        self.IODC=float(data[6][61:80])
+        self.SV_accuracy=getfloat(data[6][4:23])
+        self.SV_health=getfloat(data[6][23:42])
+        self.TGD=getfloat(data[6][42:61])
+        self.IODC=getfloat(data[6][61:80])
 
 
 class Renix304_navigation_record_BDS():
@@ -223,34 +239,34 @@ class Renix304_navigation_record_BDS():
         # 解析第一行
         self.SVN = data[0][0:3]
         self.toc = timeString2UTC_2(data[0][3:23])
-        self.a0 = float(data[0][23:42])
-        self.a1 = float(data[0][42:61])
-        self.a2 = float(data[0][61:80])
+        self.a0 = getfloat(data[0][23:42])
+        self.a1 = getfloat(data[0][42:61])
+        self.a2 = getfloat(data[0][61:80])
         # 解析第二行
-        self.AODE = float(data[1][4:23])
-        self.Crs = float(data[1][23:42])
-        self.delta_n = float(data[1][42:61])
-        self.M0 = float(data[1][61:80])
+        self.AODE = getfloat(data[1][4:23])
+        self.Crs = getfloat(data[1][23:42])
+        self.delta_n = getfloat(data[1][42:61])
+        self.M0 = getfloat(data[1][61:80])
         # 解析第三行
-        self.Cuc = float(data[2][4:23])
-        self.e = float(data[2][23:42])
-        self.Cus = float(data[2][42:61])
-        self.sqrt_a = float(data[2][61:80])
+        self.Cuc = getfloat(data[2][4:23])
+        self.e = getfloat(data[2][23:42])
+        self.Cus = getfloat(data[2][42:61])
+        self.sqrt_a = getfloat(data[2][61:80])
         # 解析第四行
-        self.toe = float(data[3][4:23])
-        self.Cic = float(data[3][23:42])
-        self.omega0 = float(data[3][42:61])
-        self.Cis = float(data[3][61:80])
+        self.toe = getfloat(data[3][4:23])
+        self.Cic = getfloat(data[3][23:42])
+        self.omega0 = getfloat(data[3][42:61])
+        self.Cis = getfloat(data[3][61:80])
         # 解析第五行
-        self.i0 = float(data[4][4:23])
-        self.Crc = float(data[4][23:42])
-        self.w = float(data[4][42:61])
-        self.omega_dot = float(data[4][61:80])
+        self.i0 = getfloat(data[4][4:23])
+        self.Crc = getfloat(data[4][23:42])
+        self.w = getfloat(data[4][42:61])
+        self.omega_dot = getfloat(data[4][61:80])
         # 解析第六行
-        self.i_dot = float(data[5][4:23])
-        self.spare1 = float(data[5][23:42])
-        self.BDS_week = float(data[5][42:61])
-        self.spare2 = float(data[5][61:80])
+        self.i_dot = getfloat(data[5][4:23])
+        self.spare1 = getfloat(data[5][23:42])
+        self.BDS_week = getfloat(data[5][42:61])
+        self.spare2 = getfloat(data[5][61:80])
 
 
 # 读取Renix3.04的n文件,返回Renix304_brdc_record类的记录对象
@@ -322,10 +338,10 @@ def read_Renix304_nFile(Renix304_nFile, health_control=True):
 """
 #GPS精密星历数据记录类
 class satelliteobit_XYZdT:
-    def __init__(self,time,system,PRN,X,Y,Z,dT):
+    def __init__(self, time, system, SVN, X, Y, Z, dT):
         self.time=time
         self.system=system
-        self.PRN=PRN
+        self.SVN=SVN
         self.X=X
         self.Y=Y
         self.Z=Z
@@ -377,12 +393,209 @@ def read_GPS_sp3File(GPS_sp3File):
 可支持混合数据
     
 """
+
+
+GPS_signal_priority={'L1':['1C', '1P', '1Y', '1W', '1M', '1N', '1S', '1L'],
+                     'L2':['2P', '2Y', '2W', '2C', '2M', '2N', '2D', '2S', '2L', '2X'],
+                     'L5':['5I', '5Q', '5X']}
+
+BDS_signal_priority={'B1':['2I', '2Q', '2X'], 'B2':['7I', '7Q', '7X'], 'B3':['6I', '6Q', '6X']}
+
+def getreal(num_string):
+    if num_string == "":
+        real = 9999
+    else:
+        real = float(num_string)
+    return real
+
 # 观测记录解析类
 class observation_record:
-    def __init__(self, SVN, time, data):
-        self.SVN=SVN
-        self.time=time
-        self.data=data
+    def __init__(self, SVN, time, data, vision):
+        self.SVN = SVN
+        self.time = time
+        self.vision = vision
+        self.manage_data(data)
+
+    def manage_data(self, data, SignalStrength=2):
+        # renix3版本的数据
+        if self.vision == "renix3":
+            # GPS数据
+            if self.SVN[0] == "G":
+                managed_data = {}
+                managed_data_flag = {'L1_C':False, 'L2_C':False, 'L5_C':False,
+                                     'L1_L':False, 'L2_L':False, 'L5_L':False,
+                                     'L1_D':False, 'L2_D':False, 'L5_D':False}
+                # L1
+                for signal in GPS_signal_priority['L1']:
+                    if not data.__contains__("L" + signal):
+                        continue
+                    if not managed_data_flag['L1_L'] and data.__contains__("L"+signal):
+                        if getreal(data["L"+signal]['Signal strength']) > SignalStrength and data["L"+signal]['observation']!="":
+                            managed_data['L1_L'] = data['L' + signal]
+                            managed_data_flag['L1_L'] = True
+                    if not managed_data_flag['L1_C'] and data.__contains__("C"+signal):
+                        if getreal(data["C"+signal]['Signal strength']) > SignalStrength and data["C"+signal]['observation']!="":
+                            managed_data['L1_C'] = data['C' + signal]
+                            managed_data_flag['L1_C'] = True
+                    if not managed_data_flag['L1_D'] and data.__contains__("D"+signal):
+                        if getreal(data["D"+signal]['Signal strength']) > SignalStrength and data["D"+signal]['observation']!="":
+                            managed_data['L1_D'] = data['D' + signal]
+                            managed_data_flag['L1_D'] = True
+                # L2
+                for signal in GPS_signal_priority['L2']:
+                    if not data.__contains__("L" + signal):
+                        continue
+                    if not managed_data_flag['L2_L'] and data.__contains__("L" + signal):
+                        if getreal(data["L" + signal]['Signal strength']) > SignalStrength and data["L"+signal]['observation']!="":
+                            managed_data['L2_L'] = data['L' + signal]
+                            managed_data_flag['L2_L'] = True
+                    if not managed_data_flag['L2_C'] and data.__contains__("C" + signal):
+                        if getreal(data["C" + signal]['Signal strength']) > SignalStrength and data["C"+signal]['observation']!="":
+                            managed_data['L2_C'] = data['C' + signal]
+                            managed_data_flag['L2_C'] = True
+                    if not managed_data_flag['L2_D'] and data.__contains__("D" + signal):
+                        if getreal(data["D" + signal]['Signal strength']) > SignalStrength and data["C"+signal]['observation']!="":
+                            managed_data['L2_D'] = data['D' + signal]
+                            managed_data_flag['L2_D'] = True
+                # 进行频率L5的观测数据整理
+                for signal in GPS_signal_priority['L5']:
+                    if not data.__contains__("L" + signal):
+                        continue
+                    if not managed_data_flag['L5_L'] and data.__contains__("L" + signal):
+                        if getreal(data["L" + signal]['Signal strength']) > SignalStrength and data["L"+signal]['observation']!="":
+                            managed_data['L5_L'] = data['L' + signal]
+                            managed_data_flag['L5_L'] = True
+                    if not managed_data_flag['L5_C'] and data.__contains__("C" + signal):
+                        if getreal(data["C" + signal]['Signal strength']) > SignalStrength and data["C"+signal]['observation']!="":
+                            managed_data['L5_C'] = data['C' + signal]
+                            managed_data_flag['L5_C'] = True
+                    if not managed_data_flag['L5_D'] and data.__contains__("D" + signal):
+                        if getreal(data["D" + signal]['Signal strength']) > SignalStrength and data["D"+signal]['observation']!="":
+                            managed_data['L5_D'] = data['D' + signal]
+                            managed_data_flag['L5_D'] = True
+                # 进行数据汇总
+                self.data = managed_data
+                self.managed_data_flag = managed_data_flag
+
+            # BDS数据
+            if self.SVN[0] == "C":
+                managed_data = {}
+                managed_data_flag = {'B1_C':False, 'B2_C':False, 'B3_C':False,
+                                     'B1_L':False, 'B2_L':False, 'B3_L':False,
+                                     'B1_D':False, 'B2_D':False, 'B3_D':False}
+                # 进行频率B1的观测数据整理
+                for signal in BDS_signal_priority['B1']:
+                    if not data.__contains__("L" + signal):
+                        continue
+                    if not managed_data_flag['B1_L'] and data.__contains__("L" + signal):
+                        if getreal(data["L" + signal]['Signal strength']) > SignalStrength and data["L"+signal]['observation']!="":
+                            managed_data['B1_L'] = data['L' + signal]
+                            managed_data_flag['B1_L'] = True
+                    if not managed_data_flag['B1_C'] and data.__contains__("C" + signal):
+                        if getreal(data["C" + signal]['Signal strength']) > SignalStrength and data["C"+signal]['observation']!="":
+                            managed_data['B1_C'] = data['C' + signal]
+                            managed_data_flag['B1_C'] = True
+                    if not managed_data_flag['B1_D'] and data.__contains__("D" + signal):
+                        if getreal(data["D" + signal]['Signal strength']) > SignalStrength and data["D"+signal]['observation']!="":
+                            managed_data['B1_D'] = data['D' + signal]
+                            managed_data_flag['B1_D'] = True
+                # 进行频率B2的观测数据整理
+                for signal in BDS_signal_priority['B2']:
+                    if not data.__contains__("L" + signal):
+                        continue
+                    if not managed_data_flag['B2_L'] and data.__contains__("L" + signal):
+                        if getreal(data["L" + signal]['Signal strength']) > SignalStrength and data["L"+signal]['observation']!="":
+                            managed_data['B2_L'] = data['L' + signal]
+                            managed_data_flag['B2_L'] = True
+                    if not managed_data_flag['B2_C'] and data.__contains__("C" + signal):
+                        if getreal(data["C" + signal]['Signal strength']) > SignalStrength and data["C"+signal]['observation']!="":
+                            managed_data['B2_C'] = data['C' + signal]
+                            managed_data_flag['B2_C'] = True
+                    if not managed_data_flag['B2_D'] and data.__contains__("D" + signal):
+                        if getreal(data["D" + signal]['Signal strength']) > SignalStrength and data["D"+signal]['observation']!="":
+                            managed_data['B2_D'] = data['D' + signal]
+                            managed_data_flag['B2_D'] = True
+                # 进行频率B3的观测数据整理
+                for signal in BDS_signal_priority['B3']:
+                    if not data.__contains__("L" + signal):
+                        continue
+                    if not managed_data_flag['B3_L'] and data.__contains__("L" + signal):
+                        if getreal(data["L" + signal]['Signal strength']) > SignalStrength and data["L"+signal]['observation']!="":
+                            managed_data['B3_L'] = data['L' + signal]
+                            managed_data_flag['B3_L'] = True
+                    if not managed_data_flag['B3_C'] and data.__contains__("C" + signal):
+                        if getreal(data["C" + signal]['Signal strength']) > SignalStrength and data["C"+signal]['observation']!="":
+                            managed_data['B3_C'] = data['C' + signal]
+                            managed_data_flag['B3_C'] = True
+                    if not managed_data_flag['B3_D'] and data.__contains__("D" + signal):
+                        if getreal(data["D" + signal]['Signal strength']) > SignalStrength and data["D"+signal]['observation']!="":
+                            managed_data['B3_D'] = data['D' + signal]
+                            managed_data_flag['B3_D'] = True
+                # 进行数据汇总
+                self.data = managed_data
+                self.managed_data_flag = managed_data_flag
+
+        # renix2版本的数据
+        elif self.vision == "renix2":
+            # GPS数据
+            if self.SVN[0] == "G":
+                managed_data = {}
+                managed_data_flag = {'L1_C':False, 'L2_C':False, 'L5_C':False,
+                                     'L1_L':False, 'L2_L':False, 'L5_L':False,
+                                     'L1_D':False, 'L2_D':False, 'L5_D':False}
+                # L1
+                if (not managed_data_flag['L1_C']) and data.__contains__('P1'):
+                    if getreal(data['P1']['Signal strength']) >= SignalStrength and data['P1']['observation']!="":
+                        managed_data['L1_C'] = data['P1']
+                        managed_data_flag['L1_C'] = True
+                elif (not managed_data_flag['L1_C']) and data.__contains__('C1'):
+                    if getreal(data['C1']['Signal strength']) >= SignalStrength and data['C1']['observation']!="":
+                        managed_data['L1_C'] = data['C1']
+                        managed_data_flag['L1_C'] = True
+                if not managed_data_flag['L1_L'] and data.__contains__('L1'):
+                    if getreal(data['L1']['Signal strength']) >= SignalStrength and data['L1']['observation']!="":
+                        managed_data['L1_L'] = data['L1']
+                        managed_data_flag['L1_L'] = True
+                if not managed_data_flag['L1_D'] and data.__contains__("D1"):
+                    if getreal(data["D1"]['Signal strength']) >= SignalStrength and data['D1']['observation']!="":
+                        managed_data['L1_D'] = data['D1']
+                        managed_data_flag['L1_D'] = True
+                # L2
+                if not managed_data_flag['L2_C'] and data.__contains__('P2'):
+                    if getreal(data['P2']['Signal strength']) >= SignalStrength and data['P2']['observation']!="":
+                        managed_data['L2_C'] = data['P2']
+                        managed_data_flag['L2_C'] = True
+                elif not managed_data_flag['L2_C'] and data.__contains__('C2'):
+                    if getreal(data['C2']['Signal strength']) >= SignalStrength and data['C2']['observation']!="":
+                        managed_data['L2_C'] = data['C2']
+                        managed_data_flag['L2_C'] = True
+                if not managed_data_flag['L2_L'] and data.__contains__('L2'):
+                    if getreal(data['L2']['Signal strength']) > SignalStrength and data['L2']['observation']!="":
+                        managed_data['L2_L'] = data['L2']
+                        managed_data_flag['L2_L'] = True
+                if not managed_data_flag['L2_D'] and data.__contains__("D2"):
+                    if getreal(data["D2"]['Signal strength']) > SignalStrength and data['D2']['observation']!="":
+                        managed_data['L2_D'] = data['D2']
+                        managed_data_flag['L2_D'] = True
+                # 进行频率L5的观测数据整理
+                if not managed_data_flag['L5_C'] and data.__contains__('C5'):
+                    if getreal(data['C5']['Signal strength']) > SignalStrength and data['C5']['observation']!="":
+                        managed_data['L5_C'] = data['C5']
+                        managed_data_flag['L5_C'] = True
+                if not managed_data_flag['L5_L'] and data.__contains__('L5'):
+                    if getreal(data['L5']['Signal strength']) > SignalStrength and data['L5']['observation']!="":
+                        managed_data['L5_L'] = data['L5']
+                        managed_data_flag['L5_L'] = True
+                if not managed_data_flag['L5_D'] and data.__contains__("D5"):
+                    if getreal(data["D5"]['Signal strength']) > SignalStrength and data['D5']['observation']!="":
+                        managed_data['L5_D'] = data['D5']
+                        managed_data_flag['L5_D'] = True
+                # 进行数据汇总
+                self.data = managed_data
+                self.managed_data_flag = managed_data_flag
+
+
+
 
 # 读取Renix2的观测文件,返回observation_record类的记录对象
 def read_Rinex2_oFile(Rinex2_oFile):
@@ -478,6 +691,7 @@ def read_Rinex2_oFile(Rinex2_oFile):
                if k==0:
                    l=l-1
                    k=5
+               # 记录观测值细节
                data_detail={}
                if main_data[cursor+l][16*(k-1):16*k-2].strip() != "":
                    data_detail['observation'] = float(eval(main_data[cursor+l][16*(k-1):16*k-2]))
@@ -486,7 +700,7 @@ def read_Rinex2_oFile(Rinex2_oFile):
                data_detail['LLI'] = main_data[cursor+l][16*k-2:16*k-1].strip()
                data_detail['Signal strength'] = main_data[cursor+l][16*k-1:16*k].strip()
                the_data["%s"%observation_types[i]] = data_detail
-           obrecord = observation_record(the_svn, time, the_data)
+           obrecord = observation_record(the_svn, time, the_data, "renix2")
            observation_records.append(obrecord)
            n_of_line+=1
            cursor+=gap
@@ -511,7 +725,7 @@ def read_Rinex2_oFile(Rinex2_oFile):
                data_detail['LLI']=main_data[cursor+l][16*k-2:16*k-1].strip()
                data_detail['Signal strength']=main_data[cursor+l][16*k-1:16*k].strip()
                the_data["%s"%observation_types[i]]=data_detail
-           obrecord=observation_record(the_svn, time, the_data)
+           obrecord=observation_record(the_svn, time, the_data, "renix2")
            observation_records.append(obrecord)
            n_of_line+=1
            cursor+=gap
@@ -608,7 +822,7 @@ def read_Rinex3_oFile(Rinex3_oFile):
                 data_detail['LLI'] = line[17+i*16:18+i*16].strip()
                 data_detail['Signal strength'] = line[18+i*16:19+i*16].strip()
                 the_data[observation_types[the_system][i]] = data_detail
-            obrecord = observation_record(SVN, time, the_data)
+            obrecord = observation_record(SVN, time, the_data, "renix3")
             observation_records.append(obrecord)
         line = of.readline()
         if line == "":
@@ -687,7 +901,9 @@ def read_GPS_clkFile(GPS_clkfile):
     return clk_satellite_records, clk_receiver_records
 
 if __name__ == "__main__" :
-    obs = read_Rinex3_oFile(r"D:\Tongji_study\my_GNSS\GNSS_Programming\edata\obs\renix3\LEIJ00DEU_R_20213120000_01D_30S_MO.rnx")
+    # obs = read_Rinex3_oFile(r"D:\Tongji_study\my_GNSS\GNSS_Programming\edata\obs\renix3\LEIJ00DEU_R_20213120000_01D_30S_MO.rnx")
+    # obs = read_Rinex3_oFile(r"D:\Desktop\毕业设计\数据\origin\main.22O")
+    obs = read_Rinex2_oFile("D:\Tongji_study\my_GNSS\GNSS_Programming\edata\obs\warn3110.20o")
 
 
 

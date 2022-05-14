@@ -10,17 +10,28 @@
 
 comment：
     1.画误差序列图
-    2.
+    2.高效画图工具，主要针对残差绘图
 
 """
 
 
 # import
+import datetime
+
 import utils.DoFile as DoFile
 import utils.CoorTransform as CoorTransform
 import matplotlib.pyplot as plt
 import numpy as np
 import random
+
+
+def get_time_series(start_time, end_time, time_interval):
+    time_series = []
+    time = start_time
+    while time < end_time:
+        time_series.append(time)
+        time += datetime.timedelta(seconds=time_interval)
+    return time_series
 
 
 
@@ -171,15 +182,223 @@ def paint_3dimensional_scatterplot_of_positionerrors_inNEU(cal_coors: list, true
     plt.show()
 
 
+# 随机生成颜色
+def get_cmap(n, name='tab20b'):
+    '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct
+    RGB color; the keyword argument name must be a standard mpl colormap name.'''
+    return plt.cm.get_cmap(name, n)
+
+# 单条绘图数值记录类
+class plot_record():
+    def __init__(self, T, value, label, instruction=""):
+        self.T = T
+        self.value = value
+        self.label = label
+        self.instruction = instruction
+
+# 绘图数值记录类的集合管理&画图类
+class plot_records_manager():
+    def __init__(self, title):
+        self.plot_records = []
+        self.title = title
+
+    def add_plot_record(self, plot_record):
+        self.plot_records.append(plot_record)
+
+    def plot_by_labels(self, labels, form="plot"):
+        # 绘图设置
+        plt.rcParams['font.sans-serif'] = ['SimHei']
+        plt.rcParams['axes.unicode_minus'] = False
+        colors = get_cmap(len(labels))
+        # 整理记录
+        for label in labels:
+           # record_list = list(filter(lambda o:o.label == label, self.plot_records)).sort(key=lambda o:o.T)
+           record_list = list(filter(lambda o: o.label == label, self.plot_records))
+           x = [i.T for i in record_list]
+           y = [i.value for i in record_list]
+           if form == "plot":
+               plt.plot(x, y, color=colors(labels.index(label)), label=label)
+           elif form == "scatter":
+               plt.scatter(x, y, color=colors(labels.index(label)), label=label)
+        plt.title(self.title)
+        # plt.legend(loc='best', ncol=5)
+        plt.legend(loc='best')
+        plt.show()
+
+
+# 绘制伪距+相位双差残差类
+class plot_DDresidual_bysvn():
+    def __init__(self, title="双差观测值残差序列图"):
+        self.plot_records_manager=plot_records_manager(title)
+        self.svn_pairs = []
+        self.labels = []
+
+    def add_epoch_residuals(self, T, base_svn, svns, residuals):
+        n = len(svns)
+        cp_residuals = residuals[:n]
+        pr_residuals = residuals[n:]
+        for i in range(n):
+            svn = svns[i]
+            self.add_svnpair_withoutrepeat(base_svn + "-" + svn)
+            # 增加载波相位残差对象
+            cp_residual = cp_residuals[i]
+            cp_record = plot_record(T, cp_residual, base_svn+"-"+svn+"_cp")
+            self.plot_records_manager.add_plot_record(cp_record)
+            # 增加伪距残差对象
+            pr_residual = pr_residuals[i]
+            pr_record = plot_record(T, pr_residual, base_svn+"-"+svn+"_pr")
+            self.plot_records_manager.add_plot_record(pr_record)
+
+    def add_svnpair_withoutrepeat(self, svn):
+        if svn not in self.svn_pairs:
+            self.svn_pairs.append(svn)
+        else:
+            return
+
+    def plot_residuals(self, form="plot"):
+        labels_cp = [svn_pair+"_cp" for svn_pair in self.svn_pairs]
+        self.plot_records_manager.plot_by_labels(labels_cp, form)
+        labels_pr = [svn_pair+"_pr" for svn_pair in self.svn_pairs]
+        self.plot_records_manager.plot_by_labels(labels_pr, form)
+        # self.plot_records_manager.plot_by_labels(self.svn_pairs)
+
+
+# 绘制双差观测值（伪距/相位）残差类
+class plot_DDobs_residual_bysvn():
+    def __init__(self, title="双差观测值残差序列图"):
+        self.plot_records_manager=plot_records_manager(title)
+        self.svn_pairs = []
+        self.labels = []
+
+    def add_epoch_residuals(self, T, base_svn, svns, DDobs_residuals):
+        n = len(svns)
+        for i in range(n):
+            svn = svns[i]
+            self.add_svnpair_withoutrepeat(base_svn + "-" + svn)
+            # 增加伪距残差对象
+            DDobs_residual = DDobs_residuals[i]
+            DDobs_record = plot_record(T, DDobs_residual, base_svn+"-"+svn)
+            self.plot_records_manager.add_plot_record(DDobs_record)
+
+    def add_svnpair_withoutrepeat(self, svnpais):
+        if svnpais not in self.svn_pairs:
+            self.svn_pairs.append(svnpais)
+        else:
+            return
+
+    def plot_residuals(self, form="plot"):
+        labels = [svn_pair for svn_pair in self.svn_pairs]
+        self.plot_records_manager.plot_by_labels(labels, form)
+
+
+# 绘制双差模糊度类
+class plot_DDambiguity_bysvn():
+    def __init__(self, round=False, title="双差模糊度序列"):
+        self.plot_records_manager=plot_records_manager(title)
+        self.labels = []
+        self.round = round
+
+    def add_epoch_ambiguity(self, T, base_svn, dif_svns, ambiguitys):
+        n = len(dif_svns)
+        for i in range(n):
+            svn = dif_svns[i]
+            label = base_svn+"-"+svn
+            # 增加双差模糊度对象
+            DDam_record = plot_record(T, ambiguitys[i], label)
+            if label not in self.labels:
+                self.labels.append(label)
+            self.plot_records_manager.add_plot_record(DDam_record)
+
+    def plot_DDambiguitys(self, form="plot"):
+        self.plot_records_manager.plot_by_labels(self.labels, form)
+
+
+# 绘制坐标序列类
+class plot_position():
+    def __init__(self, title="坐标序列图"):
+        self.plot_records_manager=plot_records_manager(title)
+        self.labels = ["X", "Y", "Z"]
+
+    def add_epoch_position(self, T, coor):
+        for i in range(3):
+            # 增加双差模糊度对象
+            DD_position_record = plot_record(T, coor[i], self.labels[i])
+            self.plot_records_manager.add_plot_record(DD_position_record)
+
+    def plot_position(self, form="plot"):
+        self.plot_records_manager.plot_by_labels(self.labels, form)
+        # self.plot_records_manager.plot_by_labels(['X'])
+        # self.plot_records_manager.plot_by_labels(['Y'])
+        # self.plot_records_manager.plot_by_labels(['Z'])
+
+
+class plot_elevation():
+    def __init__(self, title="高度角序列图"):
+        self.plot_records_manager=plot_records_manager(title)
+        self.labels = []
+
+    def add_epoch_elevations(self, T, ele_values, svns_label):
+        for i in range(len(ele_values)):
+            # 增加高度角对象
+            ele_record = plot_record(T, ele_values[i], svns_label[i])
+            if svns_label[i] not in self.labels:
+                self.labels.append(svns_label[i])
+            self.plot_records_manager.add_plot_record(ele_record)
+
+    def plot_elevations(self, form="plot"):
+        self.plot_records_manager.plot_by_labels(self.labels, form)
+
+
+
+# 绘制观测值噪声类
+class plot_obsnoise_bystationsvn():
+    def __init__(self, round=False, title="观测值噪声序列"):
+        self.plot_records_manager=plot_records_manager(title)
+        self.labels = []
+
+    def add_epoch_obsnoise(self, T, station, svn, noise):
+        label = station+"-"+svn
+        # 增加双差模糊度对象
+        prnoise_record = plot_record(T, noise, label)
+        if label not in self.labels:
+            self.labels.append(label)
+        self.plot_records_manager.add_plot_record(prnoise_record)
+
+    def plot_obsnoise(self):
+        self.plot_records_manager.plot_by_labels(self.labels)
+
+
+
+
 if __name__ == "__main__":
     # 生成坐标
-    cal_coors = []
-    true_coors = []
-    true_coor = [[0.2, 0.2, 0.2]]
-    for i in range(100):
-        cal_coors.append([random.random(), random.random(), random.random()])
-        true_coors.append([random.random(), random.random(), random.random()])
-    paint_3dimensional_scatterplot_of_positionerrors_inXYZ(cal_coors, true_coor, kenamatic_mode=False)
+    # cal_coors = []
+    # true_coors = []
+    # true_coor = [[0.2, 0.2, 0.2]]
+    # for i in range(100):
+    #     cal_coors.append([random.random(), random.random(), random.random()])
+    #     true_coors.append([random.random(), random.random(), random.random()])
+    # paint_3dimensional_scatterplot_of_positionerrors_inXYZ(cal_coors, true_coor, kenamatic_mode=False)
+    plt.rcParams['font.sans-serif'] = ['SimHei']
+    plt.rcParams['axes.unicode_minus'] = False
+
+
+
+    x1 = [1, 2, 3, 4]
+    x2 = [2, 4, 5, 6]
+    y = [2, 5, 8, 9]
+    colors = get_cmap(7, "autumn")
+    plt.plot(x1, y, color=colors(5), label="x1")
+    plt.plot(x2, y, color=colors(10), label="x2")
+
+    # plt.plot(x1, y, 'g', "x1", x2, y, 'r', "x2")
+    # plt.plot([1, 2, 3], [1, 2, 3], 'go-', label='line 1')
+    # plt.plot([1, 1.5, 3], [1, 4, 9], 'rs', label='line 2')
+    plt.legend(loc='upper right')
+    plt.title("experiment")
+    plt.xlabel("T")
+    plt.show()
+
 
 
 
