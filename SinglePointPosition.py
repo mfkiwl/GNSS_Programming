@@ -173,13 +173,7 @@ def SPP_on_broadcastrecords(ob_records, br_records, Tr, doIDC=True, doTDC=True, 
                 # P = Tropospheric_Delay_Correction_Hopfield(P, [Xk, Yk, Zk], [Xeci, Yeci, Zeci])
                 # P = Tropospheric_Delay_Correction_Saastamoinen(P, [Xk, Yk, Zk], [Xeci, Yeci, Zeci])
                 P = Tropospheric_Delay_Correction_UNB3(P, Tr, [Xk, Yk, Zk], [Xeci, Yeci, Zeci])
-                # doy = cal_doy(Tr)
-                # ele, a = CoorTransform.cal_ele_and_A([Xk, Yk, Zk], [Xeci, Yeci, Zeci])
-                # B,L,H = CoorTransform.cal_XYZ2BLH(Xk, Yk, Zk)
-                # M = Niell(B, H, ele, doy)
-                # D = UNB3(B, H, doy)
-                # dtrop = M[0] * D[0] + M[1] * D[1]
-                # P -= dtrop
+
             # 计算系数阵成分
             lou = CoorTransform.cal_distance([Xk, Yk, Zk], [Xeci, Yeci, Zeci])
             axki = (Xk-Xeci)/lou
@@ -484,7 +478,7 @@ def cal_VDOP(QNEUt):
 
 
 # 计算(并绘制)NEU误差序列
-def cal_NEUerrors(true_coors, cal_coors, ylimit=None, T_series="", save_path=""):
+def cal_NEUerrors(true_coors, cal_coors, form="plot", ylimit=None, T_series="", save_path=""):
     """
         true_coors : [[Xs,Ys,Zs],……],真实坐标列表
         cal_coors : [[Xa,Ya,Za],……],计算坐标列表
@@ -502,15 +496,33 @@ def cal_NEUerrors(true_coors, cal_coors, ylimit=None, T_series="", save_path="")
     plt.rcParams['font.sans-serif'] = ['SimHei']
     plt.rcParams['axes.unicode_minus'] = False
     if not T_series:
-        plt.plot(delta_U, color="b", label="delta U / m")
-        plt.plot(delta_N, color="r", label="delta N / m")
-        plt.plot(delta_E, color="g", label="delta E / m")
+        if form == "scatter":
+            plt.scatter([i for i in range(len(delta_U))], delta_U, color="b", label="U")
+            plt.scatter([i for i in range(len(delta_N))], delta_N, color="r", label="N")
+            plt.scatter([i for i in range(len(delta_E))], delta_E, color="g", label="E")
+            plt.xlabel("epoch", fontsize=15)
+        elif form == "plot":
+            plt.plot(delta_U, color="b", label="U")
+            plt.plot(delta_N, color="r", label="N")
+            plt.plot(delta_E, color="g", label="E")
+            plt.xlabel("epoch", fontsize=15)
     else:
-        plt.plot(T_series, delta_U, color="b", label="delta U / m")
-        plt.plot(T_series, delta_N, color="r", label="delta N / m")
-        plt.plot(T_series, delta_E, color="g", label="delta E / m")
-    plt.legend(loc='upper right')
+        if form == "scatter":
+            plt.scatter(T_series, delta_U, color="b", label="U")
+            plt.scatter(T_series, delta_N, color="r", label="N")
+            plt.scatter(T_series, delta_E, color="g", label="E")
+            plt.xlabel("GPST", fontsize=15)
+        elif form == "plot":
+            plt.plot(T_series, delta_U, color="b", label="U")
+            plt.plot(T_series, delta_N, color="r", label="N")
+            plt.plot(T_series, delta_E, color="g", label="E")
+            plt.xlabel("GPST", fontsize=15)
+    plt.ylabel('各方向定位误差/m', fontsize=15)
+    plt.legend(loc='upper right', fontsize=17)
+    plt.xticks(fontsize=15)
+    plt.yticks(fontsize=15)
     plt.title("NEU误差序列图")
+    plt.grid()
     if save_path != "":
         plt.savefig(save_path)
     if ylimit:
@@ -519,7 +531,7 @@ def cal_NEUerrors(true_coors, cal_coors, ylimit=None, T_series="", save_path="")
     return delta_N, delta_E, delta_U
 
 
-def cal_XYZerrors(true_coors, cal_coors, ylimit=None, save_path=""):
+def cal_XYZerrors(true_coors, cal_coors, form="plot", ylimit=None, T_series="", save_path=""):
     """
         true_coors : [[Xs,Ys,Zs],……],真实坐标列表
         cal_coors : [[Xa,Ya,Za],……],计算坐标列表
@@ -538,11 +550,34 @@ def cal_XYZerrors(true_coors, cal_coors, ylimit=None, save_path=""):
     # 绘图
     plt.rcParams['font.sans-serif'] = ['SimHei']
     plt.rcParams['axes.unicode_minus'] = False
-    plt.plot(delta_X, color="r", label="delta X / m")
-    plt.plot(delta_Y, color="g", label="delta Y / m")
-    plt.plot(delta_Z, color="b", label="delta Z / m")
-    plt.legend(loc='upper right')
+    if not T_series:
+        if form == "scatter":
+            plt.scatter([i for i in range(len(delta_X))], delta_X, color="r", label="X")
+            plt.scatter([i for i in range(len(delta_Y))], delta_Y, color="g", label="Y")
+            plt.scatter([i for i in range(len(delta_Z))], delta_Z, color="b", label="Z")
+            plt.xlabel("epoch", fontsize=15)
+        elif form == "plot":
+            plt.plot(delta_X, color="r", label="X")
+            plt.plot(delta_Y, color="g", label="Y")
+            plt.plot(delta_Z, color="b", label="Z")
+            plt.xlabel("epoch", fontsize=15)
+    else:
+        if form == "scatter":
+            plt.scatter(T_series, delta_X, color="r", label="X")
+            plt.scatter(T_series, delta_Y, color="g", label="Y")
+            plt.scatter(T_series, delta_Z, color="b", label="Z")
+            plt.xlabel("GPST", fontsize=15)
+        elif form == "plot":
+            plt.plot(T_series, delta_X, color="r", label="X")
+            plt.plot(T_series, delta_Y, color="g", label="Y")
+            plt.plot(T_series, delta_Z, color="b", label="Z")
+            plt.xlabel("GPST", fontsize=15)
+    plt.ylabel('各方向定位误差/m', fontsize=15)
+    plt.legend(loc='upper right', fontsize=17)
     plt.title("XYZ误差序列图")
+    plt.xticks(fontsize=15)
+    plt.yticks(fontsize=15)
+    plt.grid()
     if ylimit:
         plt.ylim(-ylimit, ylimit)
     if save_path != "":
@@ -595,10 +630,10 @@ if __name__=="__main__":
     # observation_file=r"E:\大三下\卫星与导航定位\代码集合\Satellite_Navigation_and_Positioning\data\obs\warn3100.20o"
     # observation_file = r"edata\obs\leij3100.20o"
     # observation_file = r"edata\obs\chan3100.20o"
-    # observation_file = r"edata\obs\wab23100.20o"
+    observation_file = r"edata\obs\wab23100.20o"
     # observation_file = r"edata\obs\warn3100.20o"
     # observation_file = r"edata\obs\warn3120.20o"
-    observation_file = r"edata\obs\zimm3100.20o"  # zimm
+    # observation_file = r"edata\obs\zimm3100.20o"  # zimm
     # observation_file = r"edata\obs\zim23100.20o"  # zim2
     # observation_file = r"edata\obs\renix3\WARN00DEU_R_20203100000_01D_30S_MO.rnx"
     broadcast_file = r"edata\sat_obit\brdc3100.20n"
@@ -619,8 +654,9 @@ if __name__=="__main__":
     # init_coor=[3658785.6000, 784471.1000, 5147870.7000]   #warn
     # init_coor=[-2674431.9143, 3757145.2969, 4391528.8732]   #chan
     # init_coor = [10, 10, 10]
-    init_coor = [4331297.3480, 567555.6390, 4633133.7280]  # zimm
+    # init_coor = [4331297.3480, 567555.6390, 4633133.7280]  # zimm
     # init_coor = [4331300.1600, 567537.0810, 4633133.5100]  # zim2
+    init_coor = [4327318.2325, 566955.9585, 4636425.9246]  # wab2
     true_coors = []
     cal_coors = []
     vs = []
@@ -633,11 +669,11 @@ if __name__=="__main__":
         vs.append(v)
         # print(Xk, Yk, Zk, Q, v)
         # true_coors.append([0.365878555276965E+07, 0.784471127238666E+06, 0.514787071062059E+07])  #warn
-        true_coors.append([4331297.3480, 567555.6390, 4633133.7280])  # zimm
+        # true_coors.append([4331297.3480, 567555.6390, 4633133.7280])  # zimm
         # true_coors.append([4331300.1600, 567537.0810, 4633133.5100])  # zim2
         # true_coors.append([0.389873613453103E+07,0.855345521080705E+06,0.495837257579542E+07])   #leij
         # true_coors.append([-0.267442768572702E+07, 0.375714305701559E+07, 0.439152148514515E+07])  #chan
-        # true_coors.append([4327318.2325, 566955.9585, 4636425.9246])  # wab2
+        true_coors.append([4327318.2325, 566955.9585, 4636425.9246])  # wab2
         Tr += datetime.timedelta(seconds=30)
     cal_NEUerrors(true_coors, cal_coors)
     cal_XYZerrors(true_coors, cal_coors)

@@ -52,6 +52,13 @@ def cal_NEU(stationcenter_coor,object_coor):
     U=NEU[2]
     return N,E,U
 
+def NEU2XYZ(stationcenter_coor, NEU):
+    Xs,Ys,Zs=stationcenter_coor
+    B,L,H=cal_XYZ2BLH(Xs,Ys,Zs)
+    R=np.array([[-sin(B)*cos(L),-sin(L),cos(B)*cos(L)],[-sin(B)*sin(L),cos(L),cos(B)*sin(L)],[cos(B),0,sin(B)]])
+    XYZ=R@np.array(NEU)
+    return XYZ
+
 
 '''
 由设站点XYZ坐标和目标点XYZ坐标

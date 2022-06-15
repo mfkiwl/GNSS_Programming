@@ -54,8 +54,8 @@ def add_perturbation_to_vector(vector, sigmas):
 
 def solve_OPP_withSVD(F, B, W):
     """
-    F: np.darray, 由列向量组成的参考坐标系框架下的向量矩阵 [f1, f2, f3....]
-    B_hat:  np.darray, 由列向量组成的参考坐标系框架下的向量矩阵 [b1, b2, b3....]
+    F: np.darray, 由列向量组成的参考坐标系框架下的向量矩阵 [f1, f2,....]
+    B_hat:  np.darray, 由列向量组成的参考坐标系框架下的向量矩阵 [b1, b2,....]
     W: list, 各向量的权重矩阵
     return R_check: np.darray, 旋转矩阵
 
@@ -94,14 +94,14 @@ if __name__ == "__main__":
     # b2 = add_perturbation_to_vector(r.apply(f2), [0.1, 0.1, 0.1])   # CUT0 -> CUBB
     # b3 = add_perturbation_to_vector(r.apply(f3), [0.1, 0.1, 0.1])   # CUAA -> CUT0
     # b4 = add_perturbation_to_vector(r.apply(f4), [0.1, 0.1, 0.1])    # CUCC -> CUT0
-    # b1 = add_perturbation_to_vector(r.apply(f1), [0.02, 0.02, 0.02])    # CUCC -> CUBB
-    # b2 = add_perturbation_to_vector(r.apply(f2), [0.02, 0.02, 0.02])   # CUT0 -> CUBB
-    # b3 = add_perturbation_to_vector(r.apply(f3), [0.02, 0.02, 0.02])   # CUAA -> CUT0
-    # b4 = add_perturbation_to_vector(r.apply(f4), [0.02, 0.02, 0.02])    # CUCC -> CUT0
-    b1 = add_perturbation_to_vector(r.apply(f1), [0.002, 0.002, 0.002])  # CUCC -> CUBB
-    b2 = add_perturbation_to_vector(r.apply(f2), [0.002, 0.002, 0.002])  # CUT0 -> CUBB
-    b3 = add_perturbation_to_vector(r.apply(f3), [0.002, 0.002, 0.002])  # CUAA -> CUT0
-    b4 = add_perturbation_to_vector(r.apply(f4), [0.002, 0.002, 0.002])    # CUCC -> CUT0
+    b1 = add_perturbation_to_vector(r.apply(f1), [0.02, 0.02, 0.05])    # CUCC -> CUBB
+    b2 = add_perturbation_to_vector(r.apply(f2), [0.02, 0.02, 0.05])   # CUT0 -> CUBB
+    b3 = add_perturbation_to_vector(r.apply(f3), [0.02, 0.02, 0.05])   # CUAA -> CUT0
+    b4 = add_perturbation_to_vector(r.apply(f4), [0.02, 0.02, 0.05])    # CUCC -> CUT0
+    # b1 = add_perturbation_to_vector(r.apply(f1), [0.002, 0.002, 0.002])  # CUCC -> CUBB
+    # b2 = add_perturbation_to_vector(r.apply(f2), [0.002, 0.002, 0.002])  # CUT0 -> CUBB
+    # b3 = add_perturbation_to_vector(r.apply(f3), [0.002, 0.002, 0.002])  # CUAA -> CUT0
+    # b4 = add_perturbation_to_vector(r.apply(f4), [0.002, 0.002, 0.002])    # CUCC -> CUT0
 
     # 组成向量矩阵
     # F = get_matrix_from_vectors([f1.tolist(), f2.tolist(), f3.tolist(), f4.tolist()])
@@ -112,12 +112,18 @@ if __name__ == "__main__":
     # 解旋转
     # 用rota.align_vectors
     r_check, loss = rota.align_vectors(B.T, F.T, [1, 1])
+
+    # print(np.linalg.matrix_rank(F))
     # 用自己编写的函数
-    r_check_SVD = solve_OPP_withSVD(F, B, [1, 1])
-    print(r_check_SVD)
-    print(r.as_euler('zyx', degrees=True))
+
+    import TRIAD
+    r_check_traid = TRIAD.solve_TRIAD(F, B)
+    # r_check_SVD = solve_OPP_withSVD(F, B, [1, 1])
+    # print(r_check_SVD)
+    # print(r.as_euler('zyx', degrees=True))
     print(r_check.as_euler('zyx', degrees=True))
-    print(rota.from_matrix(r_check_SVD).as_euler('zyx', degrees=True))
+    print(rota.from_matrix(r_check_traid).as_euler('zyx', degrees=True))
+    # print(rota.from_matrix(r_check_SVD).as_euler('zyx', degrees=True))
 
 
 

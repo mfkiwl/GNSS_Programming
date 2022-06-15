@@ -30,7 +30,7 @@ def get_symmetric_matrix(matrix, threshold=10e-1):
 # 基于载波相位+伪距的双差，单历元 (其中一个观测站为已知坐标站点)
 def DD_onCarrierPhase_and_Pseudorange_1known(station1_ob_records, station2_ob_records, br_records,
                                              Tr, station1_init_coor, station2_init_coor, CRC=True, cutoff=15.12345678,
-                                             c=299792458, ambi_fix=False, bands=['L1_L', 'L1_C']):
+                                             c=299792458, ambi_fix=False, bands=['L1_L', 'L2_C']):
     """
     station1_ob_records : list[GPS_observation_record class] , 所使用的观测站1观测文件记录
     station2_ob_records : list[GPS_observation_record class] , 所使用的观测站2观测文件记录
@@ -240,7 +240,7 @@ def DD_onCarrierPhase_and_Pseudorange_1known(station1_ob_records, station2_ob_re
             # Ps1 = get_DD_Pmatrix(len(l1), 1000)     # 相位
             # Ps2 = get_DD_Pmatrix(len(l2), 1)     # 伪距
             Ps1 = np.linalg.inv(get_DD_Qmatrix(len(l1), 0.002))     # 相位
-            Ps2 = np.linalg.inv(get_DD_Qmatrix(len(l2), 5))     # 伪距
+            Ps2 = np.linalg.inv(get_DD_Qmatrix(len(l2), 1))     # 伪距
 
             Pz = diagonalize_squarematrix(Ps1, Ps2)
             A = np.array(A)
@@ -309,7 +309,7 @@ def DD_onCarrierPhase_and_Pseudorange_1known(station1_ob_records, station2_ob_re
 def DD_onCPandPR_solve_ambiguity(station1_ob_records, station2_ob_records, br_records,
                                  Tr, station1_coor, station2_coor, cutoff=15.12345678,
                                  c=299792458, bands=['L1_L', 'L2_C'], DDambiguity_manager=None, DDobs_residual_manager=None,
-                                 prnoise_manager=None):
+                                 prnoise_manager=None, ele_manager=None):
     """
     station1_ob_records : list[GPS_observation_record class] , 所使用的观测站1观测文件记录
     station2_ob_records : list[GPS_observation_record class] , 所使用的观测站2观测文件记录
@@ -359,13 +359,16 @@ def DD_onCPandPR_solve_ambiguity(station1_ob_records, station2_ob_records, br_re
     for SVN in available_SVNs:
         coorX_Tr, coorY_Tr, coorZ_Tr = SatellitePosition.cal_SatellitePosition_GPS_GPSws(Tr_GPSws, SVN, br_records)
         ele_sta1_Tr = CoorTransform.cal_ele_and_A([X1, Y1, Z1], [coorX_Tr, coorY_Tr, coorZ_Tr])[0]
-        ele_sta2_Tr = CoorTransform.cal_ele_and_A([X2, Y2, Z2], [coorX_Tr, coorY_Tr, coorZ_Tr])[0]
-        ele_total = ele_sta1_Tr + ele_sta2_Tr
-        satellite_ele[SVN] = ele_total
+        # ele_sta2_Tr = CoorTransform.cal_ele_and_A([X2, Y2, Z2], [coorX_Tr, coorY_Tr, coorZ_Tr])[0]
+        # ele_total = ele_sta1_Tr + ele_sta2_Tr
+        # satellite_ele[SVN] = ele_total/2 * 180 / math.pi
+        satellite_ele[SVN] = ele_sta1_Tr / 2 * 180 / math.pi
     # 根据高度角选择最合适的基准卫星, 以及确定其他卫星
     the_SVN = max(zip(satellite_ele.values(), satellite_ele.keys()))[1]
     diff_SVNs = available_SVNs
     diff_SVNs.remove(the_SVN)
+    if ele_manager:
+        ele_manager.add_epoch_elevations(Tr, list(satellite_ele.values()), list(satellite_ele.keys()))
 
 
     final_SVNs = []
@@ -409,7 +412,7 @@ def DD_onCPandPR_solve_ambiguity(station1_ob_records, station2_ob_records, br_re
         # lou_sta1sat1_Tr10 = CoorTransform.cal_distance([X1, Y1, Z1], [coorX_sta1sat1_Tr1, coorY_sta1sat1_Tr1, coorZ_sta1sat1_Tr1])
         ele = CoorTransform.cal_ele_and_A([X1, Y1, Z1], [coorX_sta1sat1_Tr1, coorY_sta1sat1_Tr1, coorZ_sta1sat1_Tr1])[0]
         if cutoff != 15.12345678:
-            if ele * 180 / math.pi < cutoff:
+            if ele < cutoff:
                 continue
 
         # 站2到卫星1
@@ -422,7 +425,7 @@ def DD_onCPandPR_solve_ambiguity(station1_ob_records, station2_ob_records, br_re
         # lou_sta2sat1_Tr10 = CoorTransform.cal_distance([X2, Y2, Z2],[coorX_sta2sat1_Tr1, coorY_sta2sat1_Tr1, coorZ_sta2sat1_Tr1])
         ele = CoorTransform.cal_ele_and_A([X2, Y2, Z2], [coorX_sta2sat1_Tr1, coorY_sta2sat1_Tr1, coorZ_sta2sat1_Tr1])[0]
         if cutoff != 15.12345678:
-            if ele * 180 / math.pi < cutoff:
+            if ele < cutoff:
                 continue
 
         # 站1到卫星2
@@ -435,7 +438,7 @@ def DD_onCPandPR_solve_ambiguity(station1_ob_records, station2_ob_records, br_re
         # lou_sta1sat2_Tr10 = CoorTransform.cal_distance([X1, Y1, Z1], [coorX_sta1sat2_Tr1, coorY_sta1sat2_Tr1, coorZ_sta1sat2_Tr1])
         ele =CoorTransform.cal_ele_and_A([X1, Y1, Z1], [coorX_sta1sat2_Tr1, coorY_sta1sat2_Tr1, coorZ_sta1sat2_Tr1])[0]
         if cutoff != 15.12345678:
-            if ele * 180 / math.pi < cutoff:
+            if ele < cutoff:
                 continue
 
         # 站2到卫星2
@@ -448,7 +451,7 @@ def DD_onCPandPR_solve_ambiguity(station1_ob_records, station2_ob_records, br_re
         # lou_sta2sat2_Tr10 = CoorTransform.cal_distance([X2, Y2, Z2], [coorX_sta2sat2_Tr1, coorY_sta2sat2_Tr1, coorZ_sta2sat2_Tr1])
         ele = CoorTransform.cal_ele_and_A([X2, Y2, Z2], [coorX_sta2sat2_Tr1, coorY_sta2sat2_Tr1, coorZ_sta2sat2_Tr1])[0]
         if cutoff != 15.12345678:
-            if ele * 180 / math.pi < cutoff:
+            if ele < cutoff:
                 continue
 
         # 符合高度角要求则加入
@@ -482,6 +485,7 @@ def DD_onCPandPR_solve_ambiguity(station1_ob_records, station2_ob_records, br_re
 
     A = np.array(A)
     l = np.array(l1)
+    l = np.array(l1)-np.array(l2)
 
     # 解算
     # x = np.linalg.inv(A.T @ Pz @ A) @ (A.T @ Pz @ l)
@@ -497,6 +501,7 @@ def DD_onCPandPR_solve_ambiguity(station1_ob_records, station2_ob_records, br_re
             DDambiguity_manager.add_epoch_ambiguity(Tr, the_SVN, diff_SVNs, np.round(N_float))
         else:
             DDambiguity_manager.add_epoch_ambiguity(Tr, the_SVN, diff_SVNs, N_float)
+
 
     return N_float, V, the_SVN, final_SVNs
 
@@ -617,8 +622,8 @@ def DD_onCarrierPhase_and_Pseudorange_withIono_1known(station1_ob_records, stati
                 # 站1到卫星1
                 ts_sta1sat1_Tr1, dts_sta1_Tr1 = SPP.cal_EmitTime_from_datetime(Tr, the_SVN, station1_base_record.data['P2']['observation'], br_records, doCRC=True)
                 coorX_sta1sat1_Tr1, coorY_sta1sat1_Tr1, coorZ_sta1sat1_Tr1 = SatellitePosition.cal_SatellitePosition_GPS_GPSws(ts_sta1sat1_Tr1, the_SVN, br_records)
-                dt_sta1sat1_Tr1 = station1_base_record.data['P2']['observation'] / c
-                # dt_sta1sat1_Tr1 = Tr_GPSws.GpsSecond - ts_sta1sat1_Tr1.GpsSecond
+                #dt_sta1sat1_Tr1 = station1_base_record.data['P2']['observation'] / c
+                dt_sta1sat1_Tr1 = Tr_GPSws.GpsSecond - ts_sta1sat1_Tr1.GpsSecond
                 Xeci_sta1sat1_Tr1, Yeci_sta1sat1_Tr1, Zeci_sta1sat1_Tr1 = CoorTransform.earth_rotation_correction([coorX_sta1sat1_Tr1, coorY_sta1sat1_Tr1, coorZ_sta1sat1_Tr1], dt_sta1sat1_Tr1)
                 lou_sta1sat1_Tr10 = CoorTransform.cal_distance([X1, Y1, Z1], [Xeci_sta1sat1_Tr1, Yeci_sta1sat1_Tr1, Zeci_sta1sat1_Tr1])
                 ele = CoorTransform.cal_ele_and_A([X1, Y1, Z1], [coorX_sta1sat1_Tr1, coorY_sta1sat1_Tr1, coorZ_sta1sat1_Tr1])[0]
@@ -629,8 +634,8 @@ def DD_onCarrierPhase_and_Pseudorange_withIono_1known(station1_ob_records, stati
                 # 站2到卫星1
                 ts_sta2sat1_Tr1, dts_sta2_Tr1 = SPP.cal_EmitTime_from_datetime(Tr, the_SVN, station2_base_record.data['P2']['observation'], br_records, doCRC=True)
                 coorX_sta2sat1_Tr1, coorY_sta2sat1_Tr1, coorZ_sta2sat1_Tr1 = SatellitePosition.cal_SatellitePosition_GPS_GPSws(ts_sta2sat1_Tr1, the_SVN, br_records)
-                dt_sta2sat1_Tr1 = station2_base_record.data['P2']['observation'] / c
-                # dt_sta2sat1_Tr1 = Tr_GPSws.GpsSecond - ts_sta2sat1_Tr1.GpsSecond
+                # dt_sta2sat1_Tr1 = station2_base_record.data['P2']['observation'] / c
+                dt_sta2sat1_Tr1 = Tr_GPSws.GpsSecond - ts_sta2sat1_Tr1.GpsSecond
                 Xeci_sta2sat1_Tr1, Yeci_sta2sat1_Tr1, Zeci_sta2sat1_Tr1 = CoorTransform.earth_rotation_correction([coorX_sta2sat1_Tr1, coorY_sta2sat1_Tr1, coorZ_sta2sat1_Tr1], dt_sta2sat1_Tr1)
                 lou_sta2sat1_Tr10 = CoorTransform.cal_distance([X2, Y2, Z2], [Xeci_sta2sat1_Tr1, Yeci_sta2sat1_Tr1, Zeci_sta2sat1_Tr1])
                 ele = CoorTransform.cal_ele_and_A([X2, Y2, Z2], [coorX_sta2sat1_Tr1, coorY_sta2sat1_Tr1, coorZ_sta2sat1_Tr1])[0]
@@ -641,8 +646,8 @@ def DD_onCarrierPhase_and_Pseudorange_withIono_1known(station1_ob_records, stati
                 # 站1到卫星2
                 ts_sta1sat2_Tr1, dts_sta1_Tr1 = SPP.cal_EmitTime_from_datetime(Tr, available_PRN, station1_record.data['P2']['observation'], br_records, doCRC=True)
                 coorX_sta1sat2_Tr1, coorY_sta1sat2_Tr1, coorZ_sta1sat2_Tr1 = SatellitePosition.cal_SatellitePosition_GPS_GPSws(ts_sta1sat2_Tr1, available_PRN, br_records)
-                dt_sta1sat2_Tr1 = station1_record.data['P2']['observation']/c
-                # dt_sta1sat2_Tr1 = Tr_GPSws.GpsSecond - ts_sta1sat2_Tr1.GpsSecond
+                # dt_sta1sat2_Tr1 = station1_record.data['P2']['observation']/c
+                dt_sta1sat2_Tr1 = Tr_GPSws.GpsSecond - ts_sta1sat2_Tr1.GpsSecond
                 Xeci_sta1sat2_Tr1, Yeci_sta1sat2_Tr1, Zeci_sta1sat2_Tr1 = CoorTransform.earth_rotation_correction([coorX_sta1sat2_Tr1, coorY_sta1sat2_Tr1, coorZ_sta1sat2_Tr1], dt_sta1sat2_Tr1)
                 lou_sta1sat2_Tr10 = CoorTransform.cal_distance([X1, Y1, Z1], [Xeci_sta1sat2_Tr1, Yeci_sta1sat2_Tr1, Zeci_sta1sat2_Tr1])
                 ele =CoorTransform.cal_ele_and_A([X1, Y1, Z1], [coorX_sta1sat2_Tr1, coorY_sta1sat2_Tr1, coorZ_sta1sat2_Tr1])[0]
@@ -653,8 +658,8 @@ def DD_onCarrierPhase_and_Pseudorange_withIono_1known(station1_ob_records, stati
                 # 站2到卫星2
                 ts_sta2sat2_Tr1, dts_sta2_Tr1 = SPP.cal_EmitTime_from_datetime(Tr, available_PRN, station2_record.data['P2']['observation'], br_records, doCRC=True)
                 coorX_sta2sat2_Tr1, coorY_sta2sat2_Tr1, coorZ_sta2sat2_Tr1 = SatellitePosition.cal_SatellitePosition_GPS_GPSws(ts_sta2sat2_Tr1, available_PRN, br_records)
-                dt_sta2sat2_Tr1 = station2_record.data['P2']['observation']/c
-                # dt_sta2sat2_Tr1 = Tr_GPSws.GpsSecond - ts_sta2sat2_Tr1.GpsSecond
+                # dt_sta2sat2_Tr1 = station2_record.data['P2']['observation']/c
+                dt_sta2sat2_Tr1 = Tr_GPSws.GpsSecond - ts_sta2sat2_Tr1.GpsSecond
                 Xeci_sta2sat2_Tr1, Yeci_sta2sat2_Tr1, Zeci_sta2sat2_Tr1 = CoorTransform.earth_rotation_correction([coorX_sta2sat2_Tr1, coorY_sta2sat2_Tr1, coorZ_sta2sat2_Tr1], dt_sta2sat2_Tr1)
                 lou_sta2sat2_Tr10 = CoorTransform.cal_distance([X2, Y2, Z2], [Xeci_sta2sat2_Tr1, Yeci_sta2sat2_Tr1, Zeci_sta2sat2_Tr1])
                 ele = CoorTransform.cal_ele_and_A([X2, Y2, Z2], [coorX_sta2sat2_Tr1, coorY_sta2sat2_Tr1, coorZ_sta2sat2_Tr1])[0]
@@ -706,7 +711,7 @@ def DD_onCarrierPhase_and_Pseudorange_withIono_1known(station1_ob_records, stati
                 A.append(A2[i]+N_DD)
 
             # 构造权阵并求解
-            Ps1 = get_DD_Pmatrix(len(l1), 100)
+            Ps1 = get_DD_Pmatrix(len(l1), 1000)
             Ps2 = get_DD_Pmatrix(len(l2), 1)
             Pz = diagonalize_squarematrix(Ps1, Ps2)
             A = np.array(A)
@@ -761,9 +766,9 @@ def DD_onCarrierPhase_and_Pseudorange_withIono_1known(station1_ob_records, stati
 if __name__ == "__main__":
     # station2_observation_file = r"edata\obs\ptbb3100.20o"
     # station1_observation_file = r"edata\obs\leij3100.20o"    # 已知站点 leij
-    station2_observation_file = r"edata\obs\zim23100.20o"
+    station1_observation_file = r"edata\obs\zim23100.20o"
     # station1_observation_file = r"edata\obs\wab23100.20o"    # 已知站点 wab2
-    station1_observation_file = r"edata\obs\zimm3100.20o"  # 已知站点 zimm
+    station2_observation_file = r"edata\obs\zimm3100.20o"  # 已知站点 zimm
     broadcast_file = r"edata\sat_obit\brdc3100.20n"
     # 读入观测文件内容,得到类型对象列表
     knownStation_ob_records = DoFile.read_Rinex2_oFile(station1_observation_file)
@@ -772,14 +777,14 @@ if __name__ == "__main__":
     print("数据读取完毕！")
     Tr = datetime.datetime(2020, 11, 5, 0, 0, 0)
     # init_coor = [3658785.6000, 784471.1000, 5147870.7000]
-    # init_coor = [4331297.3480, 567555.6390, 4633133.7280]      # zimm
-    init_coor = [4331300.1600, 567537.0810, 4633133.5100]  # zim2
+    init_coor = [4331297.3480, 567555.6390, 4633133.7280]      # zimm
+    # init_coor = [4331300.1600, 567537.0810, 4633133.5100]  # zim2
     # init_coor = SPP.SPP_on_broadcastrecords(unknownStation_ob_records, br_records, Tr+datetime.timedelta(seconds=60))[0:3]
     # init_coor = [0, 0, 0]
     # knownStation_coor = [0.389873613453103E+07, 0.855345521080705E+06, 0.495837257579542E+07]  # leij
     # knownStation_coor = [4327318.2325, 566955.9585, 4636425.9246]  # wab2
-    # knownStation_coor = [4331300.1600, 567537.0810, 4633133.5100]  # zim2
-    knownStation_coor = [4331297.3480, 567555.6390, 4633133.7280]  # zimm
+    knownStation_coor = [4331300.1600, 567537.0810, 4633133.5100]  # zim2
+    # knownStation_coor = [4331297.3480, 567555.6390, 4633133.7280]  # zimm
     true_coors = []
     cal_coors = []
     while Tr < datetime.datetime(2020, 11, 5, 1, 0, 0):
@@ -790,8 +795,8 @@ if __name__ == "__main__":
         cal_coors.append([Xk, Yk, Zk])
         # true_coors.append([0.365878555276965E+07, 0.784471127238666E+06, 0.514787071062059E+07])  # warn
         # true_coors.append([3844059.7545, 709661.5334, 5023129.6933])     # ptbb
-        # true_coors.append([4331297.3480, 567555.6390, 4633133.7280])      # zimm
-        true_coors.append([4331300.1600, 567537.0810, 4633133.5100])  # zim2
+        true_coors.append([4331297.3480, 567555.6390, 4633133.7280])      # zimm
+        # true_coors.append([4331300.1600, 567537.0810, 4633133.5100])  # zim2
         # true_coors.append([0.389873613453103E+07,0.855345521080705E+06,0.495837257579542E+07])   #leij
         # true_coors.append([-0.267442768572702E+07,0.375714305701559E+07,0.439152148514515E+07])  #chan
         Tr += datetime.timedelta(seconds=30)

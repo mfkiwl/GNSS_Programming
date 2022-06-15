@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 
-@title:	Style Guide for Python Code
+@title:	Time SYstem
 @author: iDeal0103
 @status:	Active
 @type:	Process
@@ -53,7 +53,7 @@ class GPSws:
 
     def add(self, second):
         # 直接在原对象上进行减操作
-        self.GpsSecond = self.GpsSecond-second
+        self.GpsSecond = self.GpsSecond+second
         while self.GpsSecond > 604800:
             self.GpsWeek += 1
             self.GpsSecond -= 86400*7

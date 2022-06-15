@@ -33,11 +33,14 @@ todo:
 # import
 import datetime
 import math
-# import TimeSystem
-
+import utils.TimeSystem as TimeSystem
+import utils.CoorTransform as CoorTrasnform
 
 #将文件数据中的科学计数法底数"D",变为"e" 
 #如 3.234D+10 -> 3.234e+10
+import numpy as np
+
+
 def parse_Dstring_intofloat(D_string):
     e_string=D_string.replace("D","e")
     e_data=float(e_string)
@@ -761,11 +764,15 @@ def read_Rinex3_oFile(Rinex3_oFile):
     G_observation_types = []
     R_observation_types = []
     S_observation_types = []
+    J_observation_types = []
+    I_observation_types = []
     observation_types['C'] = C_observation_types
     observation_types['E'] = E_observation_types
     observation_types['G'] = G_observation_types
     observation_types['R'] = R_observation_types
     observation_types['S'] = S_observation_types
+    observation_types['J'] = J_observation_types
+    observation_types['I'] = I_observation_types
     while line.strip()[-9:] == "OBS TYPES":
         system = line[0]   # 获取当前系统名
         observation_num = int(line[3:6])
@@ -900,10 +907,103 @@ def read_GPS_clkFile(GPS_clkfile):
     clkf.close()
     return clk_satellite_records, clk_receiver_records
 
+
+
+
+# 读取rtklib的pos文件
+class pos_xyz_record:
+    def __init__(self, T, pos_value, stds=""):
+        self.T = T
+        self.pos_value = pos_value
+        if stds:
+            self.get_Q(stds)
+
+    def get_Q(self, stds):
+        stdx = stds[0]**2
+        stdy = stds[1]**2
+        stdz = stds[2]**2
+        std2var=lambda x:x**2 if x>0 else -x**2
+        stdxy = std2var(stds[3])
+        stdyz = std2var(stds[4])
+        stdzx = std2var(stds[5])
+        Q = np.array([[stdx, stdxy, stdzx], [stdxy, stdy, stdyz], [stdzx, stdyz, stdz]])
+        self.Q = Q
+
+    def get_baseline(self, base_coor=[], xyz2neu=False):
+        if xyz2neu:
+             neu = CoorTrasnform.cal_NEU(base_coor, self.pos_value)
+             self.pos_value =[neu[1], neu[0], neu[2]]
+            # 需要将NEU转成ENU
+
+        else:
+            self.pos_value[0] -= base_coor[0]
+            self.pos_value[1] -= base_coor[1]
+            self.pos_value[2] -= base_coor[2]
+
+
+
+def read_posfile_xyz(pos_xyz_file, timemode=0, posvalmode=1, basecoor=None, xyz2neu=False):
+    """
+    pos_xyz_file : pos文件
+    timemode : 记录的时间格式, 0为 yyyy/mm/dd hh:mm:ss.sss , 1为Gpsweek Gpssecond
+    posvalmode : 1为站点ecef坐标
+    basecoor : 如需要根据站点坐标求基线, 则给入基准站坐标
+    """
+    pos_xyz_f = open(pos_xyz_file, "r")
+    pos_xyz_records = []     # 存储pos_xyz_record的列表
+    # 跳过文件头
+    line = pos_xyz_f.readline()
+    while line[0] == "%":
+        line = pos_xyz_f.readline()
+    # 读取主体数据部分
+    while line:
+        # 读时间
+        if timemode==0:
+            year = int(line[0:4])
+            month = int(line[5:7])
+            day = int(line[8:10])
+            hour = int(line[11:13])
+            minu = int(line[14:16])
+            second = int(float(line[17:23]))
+            microsecond = int(1000000 * (float(line[17:23]) - second))
+            GPST = datetime.datetime(year, month, day, hour, minu, second, microsecond)
+            # 读坐标
+            ecef_x = float(line[25:38])
+            ecef_y = float(line[40:53])
+            ecef_z = float(line[55:68])
+            # 读标准差
+            stds = list(map(float, line[79:130].split()))
+        elif timemode == 1:
+            GPSweek = int(line[0:4])
+            GPSsecond = float(line[6:15])
+            GPST = TimeSystem.GPSws(GPSweek, GPSsecond)
+            # 读坐标
+            ecef_x = float(line[17:30])
+            ecef_y = float(line[32:45])
+            ecef_z = float(line[47:60])
+            # 读标准差
+            stds = list(map(float, line[71:122].split()))
+        # 构造pos_xyz_record
+        pos_xyz_rec = pos_xyz_record(GPST, [ecef_x, ecef_y, ecef_z], stds)
+        # 处理坐标
+        if posvalmode == 1:     # pos文件中坐标为rover站坐标
+            if basecoor:
+                pos_xyz_rec.get_baseline(basecoor, xyz2neu)
+            else:
+                print("未给入参考站坐标！")
+        pos_xyz_records.append(pos_xyz_rec)
+        # 继续读取下一行记录
+        line = pos_xyz_f.readline()
+    return pos_xyz_records
+
+
+
+
 if __name__ == "__main__" :
     # obs = read_Rinex3_oFile(r"D:\Tongji_study\my_GNSS\GNSS_Programming\edata\obs\renix3\LEIJ00DEU_R_20213120000_01D_30S_MO.rnx")
     # obs = read_Rinex3_oFile(r"D:\Desktop\毕业设计\数据\origin\main.22O")
-    obs = read_Rinex2_oFile("D:\Tongji_study\my_GNSS\GNSS_Programming\edata\obs\warn3110.20o")
+    # obs = read_Rinex2_oFile("D:\Tongji_study\my_GNSS\GNSS_Programming\edata\obs\warn3110.20o")
+    pos = read_posfile_xyz(r"D:\Desktop\cubb.pos")
 
 
 

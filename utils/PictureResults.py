@@ -21,8 +21,10 @@ import datetime
 import utils.DoFile as DoFile
 import utils.CoorTransform as CoorTransform
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 import numpy as np
 import random
+import math
 
 
 def get_time_series(start_time, end_time, time_interval):
@@ -222,7 +224,10 @@ class plot_records_manager():
                plt.scatter(x, y, color=colors(labels.index(label)), label=label)
         plt.title(self.title)
         # plt.legend(loc='best', ncol=5)
-        plt.legend(loc='best')
+        # plt.legend(loc='best')
+        plt.xticks(fontsize=15)
+        plt.yticks(fontsize=15)
+        plt.grid()
         plt.show()
 
 
@@ -366,6 +371,49 @@ class plot_obsnoise_bystationsvn():
 
     def plot_obsnoise(self):
         self.plot_records_manager.plot_by_labels(self.labels)
+
+
+
+# 绘制坐标
+# 绘制定位误差
+def plot_coors_xyz(coors):
+    # 构造画图数据
+    ns = []
+    es = []
+    us = []
+    for coor in coors:
+        ns.append(coor[0])
+        es.append(coor[1])
+        us.append(coor[2])
+    times = [i+1 for i in range(len(coors))]
+    # 绘制方法2
+    plt.rcParams['font.sans-serif'] = ['SimHei']
+    plt.rcParams['axes.unicode_minus'] = False
+    fig = plt.figure(tight_layout=True)
+    gs = gridspec.GridSpec(3, 1)
+    # 绘制x
+    ax = fig.add_subplot(gs[0, :])
+    ax.plot(times, ns, color="r", label="X/m")
+    ax.legend(loc='upper left')
+    # ax.set_ylabel('position-X / m')
+    # ax.set_xlabel('GPST')
+    ax.grid()
+    # 绘制y
+    ax = fig.add_subplot(gs[1, :])
+    ax.plot(times, es, color="g", label="Y/m")
+    ax.legend(loc='upper left')
+    # ax.set_ylabel('position-Y / m')
+    # ax.set_xlabel('GPST')
+    ax.grid()
+    # 绘制z
+    ax = fig.add_subplot(gs[2, :])
+    ax.plot(times, us, color="b", label="Z/m")
+    ax.legend(loc='upper left')
+    # ax.set_ylabel('position-Z / m')
+    # ax.set_xlabel('GPST')
+    ax.grid()
+    # 显示结果
+    plt.show()
 
 
 

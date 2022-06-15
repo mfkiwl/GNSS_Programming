@@ -175,7 +175,7 @@ class DD_records_atTr:
                     self.DD_observations_data[band].append(DD_obses[self.bands.index(band)])
                     if band_is_carrierphase(band):
                         lamb = get_lamb_from_band(band)
-                        self.DD_ambiguitys[band].append(DD_obses[self.bands.index(band)].DD_obs/lamb)
+                        self.DD_ambiguitys[band].append(DD_obses[self.bands.index('L2_C')].DD_obs/lamb)
                         self.DD_ambiguitys_noise[band].append(self.init_amb_noise)
             else:
                 self.unqualitified_satellites.append(the_svn)
@@ -238,9 +238,9 @@ class DD_records_atTr:
                 for svn in self.qualitified_satellites:
                     GF_before = DD_GF_before[svn]
                     GF_now = self.DD_GF[svn]
-                    if CycleslipsDetection.GF_detector(GF_before, GF_now, threshold=0.05):
+                    if CycleslipsDetection.GF_detector(GF_before, GF_now, threshold=1):
                         cycle_slip_svn.append(svn)
-                        print(svn + '卫星发生周跳！')
+                        print(svn + '卫星发生周跳！deltaGF=', abs(GF_before-GF_now))
                 if cycle_slip_svn:
                     self.delete_withrecord_from_qualitified_svn(cycle_slip_svn)
             # 获得所有被移除的上一历元合格卫星的索引
@@ -297,7 +297,7 @@ class DD_records_atTr:
                         self.DD_ambiguitys[band].pop(svn_index)
                         self.DD_ambiguitys_noise[band].pop(svn_index)
 
-    def set_base_satellite_from_ambiguity_transfer(self, ambiguity_transfer, sta1obs_records_Tr, sta2obs_records_Tr, ele_limit):
+    def set_base_satellite_from_ambiguity_transfer(self, ambiguity_transfer, sta1obs_records_Tr, sta2obs_records_Tr, ele_limit=10):
         base_sta1obs_record = list(filter(lambda o: o.SVN == ambiguity_transfer.base_svn, sta1obs_records_Tr))
         base_sta2obs_record = list(filter(lambda o: o.SVN == ambiguity_transfer.base_svn, sta2obs_records_Tr))
         transfer_matrix = np.array([0])
@@ -379,13 +379,14 @@ class DD_records_atTr:
 
 
 class ambiguity_transfer():
-    def __init__(self, band, ambiguitys, base_svn, satellites, amb_noises):
+    def __init__(self, band, ambiguitys, base_svn, satellites, amb_noises, rover_station=""):
         self.band = band
         self.base_svn = base_svn
         self.ambiguitys = ambiguitys
         self.satellites = satellites
         self.amb_noises = amb_noises
         self.satellites_ele = {}
+        self.rover_station = rover_station
 
     def update_ele(self, rover_station_coor, t, nav_data):
         w, s = TimeSystem.from_datetime_cal_GPSws(t)
@@ -414,6 +415,31 @@ class ambiguity_transfer():
         self.amb_noises = get_diaglist_from_matrix(am_vc)
         return transfer_matrix
 
+    def delete_amb_svn(self, svn):
+        if svn in self.satellites:
+            svn_index = self.satellites.index(svn)
+            self.satellites.pop(svn_index)
+            self.ambiguitys.pop(svn_index)
+            self.satellites_ele.pop(svn)
+            self.amb_noises.pop(svn_index)
+        else:
+            print('上一历元不含有该卫星数据！')
+
+    def imitate_ambtransfer(self, ambtransfer):
+        new_satellites = []
+        new_ambiguitys = []
+        new_amb_noises = []
+        unabled_svns = []    # 记录无法参与解算的卫星
+        for svn in ambtransfer.satellites:
+            if svn in self.satellites:
+                svn_index = self.satellites.index(svn)
+                new_satellites.append(svn)
+                new_ambiguitys.append(self.ambiguitys[svn_index])
+                new_amb_noises.append(self.amb_noises[svn_index])
+            else:
+                unabled_svns.append(svn)
+                print("缺少卫星"+svn)
+        return unabled_svns
 
 
 # 卡尔曼滤波器
@@ -515,7 +541,7 @@ class Kalman_Filter():
         Qs = self.DD_records.DD_ambiguitys_noise[self.cp_band]
         # 静态基线模式
         if self.mode == 0:
-            Q = np.diag([1e-2, 1e-2, 1e-2] + Qs)
+            Q = np.diag([1e-1, 1e-1, 1e-1] + Qs)
         # 动态基线模式
         elif self.mode == 1:
             Q = np.diag([10, 10, 10] + Qs)
@@ -549,6 +575,154 @@ class Kalman_Filter():
             self.residual_manager.add_epoch_residuals(self.DD_records.Tr, self.DD_records.base_svn, self.DD_records.qualitified_satellites, y-hx)
         if self.DDambiguity_manager:
             self.DDambiguity_manager.add_epoch_ambiguity(self.DD_records.Tr, self.DD_records.base_svn, self.DD_records.qualitified_satellites, x_est[3:])
+        if self.position_manager:
+            self.position_manager.add_epoch_position(self.DD_records.Tr, x_est[:3])
+        P_est = (np.eye(len(x_est)) - K @ H) @ P_pri
+        return x_est, P_est
+
+
+# 附带坐标约束的卡尔曼滤波器
+class Kalman_Filter_with_coordinate_constrained():
+    def __init__(self, DD_records_atTr, cp_band, pr_band, mode_int, coordinate, residual_manager=None, DDambiguity_manager=None, position_manager=None):
+        """
+        DD_records_atTr : DD_records_atTr class, 双差观测集合
+        cp_band : 载波相位
+        pr_band : 伪距
+        mode_int : 滤波解模式，0为静态，1为动态
+        """
+        self.DD_records = DD_records_atTr
+        self.cp_band = cp_band
+        self.pr_band = pr_band
+        self.mode = mode_int
+        self.coordinate = coordinate
+        self.residual_manager = residual_manager
+        self.DDambiguity_manager = DDambiguity_manager
+        self.position_manager = position_manager
+
+    def getF(self):
+        n = len(self.DD_records.DD_observations_data[self.cp_band]) + 3
+        Fmatrix = np.diag([1 for i in range(n)])
+        return Fmatrix
+
+    def getH(self, nav_data, sta1_coor, sta2_coor, x_array):
+        H11 = []
+        H21 = []
+        hx = []
+        for DD_data in self.DD_records.DD_observations_data[self.cp_band]:
+            # 计算站1星1元素
+            ts_sta1sat1, dts_sta1sat1 = SPP.cal_EmitTime_from_datetime(DD_data.T, DD_data.sat1, DD_data.obs1_sat1.data[self.pr_band]['observation'], nav_data, doCRC=True)
+            coorX_sta1sat1, coorY_sta1sat1, coorZ_sta1sat1 = SatellitePosition.cal_SatellitePosition_GPS_GPSws(ts_sta1sat1, DD_data.sat1, nav_data)
+            dt_sta1sat1 = DD_data.obs1_sat1.data[self.pr_band]['observation'] / c
+            Xeci_sta1sat1, Yeci_sta1sat1, Zeci_sta1sat1 = CoorTransform.earth_rotation_correction([coorX_sta1sat1, coorY_sta1sat1, coorZ_sta1sat1], dt_sta1sat1)
+            lou_sta1sat1 = CoorTransform.cal_distance(sta1_coor, [Xeci_sta1sat1, Yeci_sta1sat1, Zeci_sta1sat1])
+
+            # 计算站1星2元素
+            ts_sta1sat2, dts_sta1sat2 = SPP.cal_EmitTime_from_datetime(DD_data.T, DD_data.sat2, DD_data.obs1_sat2.data[self.pr_band]['observation'], nav_data, doCRC=True)
+            coorX_sta1sat2, coorY_sta1sat2, coorZ_sta1sat2 = SatellitePosition.cal_SatellitePosition_GPS_GPSws(ts_sta1sat2, DD_data.sat2, nav_data)
+            dt_sta1sat2 = DD_data.obs1_sat2.data[self.pr_band]['observation'] / c
+            Xeci_sta1sat2, Yeci_sta1sat2, Zeci_sta1sat2 = CoorTransform.earth_rotation_correction([coorX_sta1sat2, coorY_sta1sat2, coorZ_sta1sat2], dt_sta1sat2)
+            lou_sta1sat2 = CoorTransform.cal_distance(sta1_coor, [Xeci_sta1sat2, Yeci_sta1sat2, Zeci_sta1sat2])
+
+            # 计算站2星1元素
+            ts_sta2sat1, dts_sta2sat1 = SPP.cal_EmitTime_from_datetime(DD_data.T, DD_data.sat1, DD_data.obs2_sat1.data[self.pr_band]['observation'], nav_data, doCRC=True)
+            coorX_sta2sat1, coorY_sta2sat1, coorZ_sta2sat1 = SatellitePosition.cal_SatellitePosition_GPS_GPSws(ts_sta2sat1, DD_data.sat1, nav_data)
+            dt_sta2sat1 = DD_data.obs2_sat1.data[self.pr_band]['observation'] / c
+            Xeci_sta2sat1, Yeci_sta2sat1, Zeci_sta2sat1 = CoorTransform.earth_rotation_correction([coorX_sta2sat1, coorY_sta2sat1, coorZ_sta2sat1], dt_sta2sat1)
+            lou_sta2sat1 = CoorTransform.cal_distance(sta2_coor, [Xeci_sta2sat1, Yeci_sta2sat1, Zeci_sta2sat1])
+
+            # 计算站2星2元素
+            ts_sta2sat2, dts_sta2sat2 = SPP.cal_EmitTime_from_datetime(DD_data.T, DD_data.sat2, DD_data.obs2_sat2.data[self.pr_band]['observation'], nav_data, doCRC=True)
+            coorX_sta2sat2, coorY_sta2sat2, coorZ_sta2sat2 = SatellitePosition.cal_SatellitePosition_GPS_GPSws(ts_sta2sat2, DD_data.sat2, nav_data)
+            dt_sta2sat2 = DD_data.obs2_sat2.data[self.pr_band]['observation'] / c
+            Xeci_sta2sat2, Yeci_sta2sat2, Zeci_sta2sat2 = CoorTransform.earth_rotation_correction([coorX_sta2sat2, coorY_sta2sat2, coorZ_sta2sat2], dt_sta2sat2)
+            lou_sta2sat2 = CoorTransform.cal_distance(sta2_coor, [Xeci_sta2sat2, Yeci_sta2sat2, Zeci_sta2sat2])
+
+            # 构造几何系数阵
+            X2, Y2, Z2 = sta2_coor
+            a_sta2_X = (X2 - Xeci_sta2sat2) / lou_sta2sat2 - (X2 - Xeci_sta2sat1) / lou_sta2sat1
+            a_sta2_Y = (Y2 - Yeci_sta2sat2) / lou_sta2sat2 - (Y2 - Yeci_sta2sat1) / lou_sta2sat1
+            a_sta2_Z = (Z2 - Zeci_sta2sat2) / lou_sta2sat2 - (Z2 - Zeci_sta2sat1) / lou_sta2sat1
+
+            H11.append([a_sta2_X, a_sta2_Y, a_sta2_Z])
+            H21.append([a_sta2_X, a_sta2_Y, a_sta2_Z])
+            hx.append(lou_sta2sat2 - lou_sta1sat2 - lou_sta2sat1 + lou_sta1sat1)
+
+        n = len(self.DD_records.DD_observations_data[self.cp_band])
+        H12 = np.eye(n) * get_lamb_from_band(self.cp_band)
+        H22 = np.zeros((n, n))
+
+        hx1 = np.array(2*hx+sta2_coor)
+        hx2 = get_lamb_from_band(self.cp_band) * np.array(x_array[3:].tolist() + [0 for i in range(len(x_array[3:].tolist()))] + [0, 0, 0])
+        hx = hx1+hx2
+        # 坐标值约束观测方程的添加
+        H31 = np.eye(3)
+        H32 = np.zeros((3, n))
+        # 合并系数阵和观测值常数阵
+        H = np.block([[np.array(H11), H12], [np.array(H21), H22], [H31, H32]])
+        hx = hx1+hx2
+        return H, hx
+
+    def gety(self):
+        y1 = []
+        y2 = []
+        for DD_data in self.DD_records.DD_observations_data[self.cp_band]:
+            y1.append(get_lamb_from_band(self.cp_band) * DD_data.DD_obs)
+        for DD_data in self.DD_records.DD_observations_data[self.pr_band]:
+            y2.append(DD_data.DD_obs)
+        y = np.array(y1+y2+self.coordinate)
+        return y
+
+    def getx(self, sta2_coor):
+        # 转换类型
+        if isinstance(sta2_coor, np.ndarray):
+            sta2_coor = sta2_coor.tolist()
+        if isinstance(self.DD_records.DD_ambiguitys[self.cp_band], np.ndarray):
+            DD_ambiguitys = self.DD_records.DD_ambiguitys[self.cp_band].tolist()
+        else:
+            DD_ambiguitys = self.DD_records.DD_ambiguitys[self.cp_band]
+        x = np.array(sta2_coor + DD_ambiguitys)
+        return x
+
+    def getQ(self):
+        Qs = self.DD_records.DD_ambiguitys_noise[self.cp_band]
+        # 静态基线模式
+        if self.mode == 0:
+            Q = np.diag([1e-1, 1e-1, 1e-1] + Qs)
+        # 动态基线模式
+        elif self.mode == 1:
+            Q = np.diag([1000, 1000, 1000] + Qs)
+        return Q
+
+    def getR(self, sigma1=0.02, sigma2=3, sigma3=[0.1, 0.1, 0.1]):
+        nDD = len(self.DD_records.DD_observations_data[self.cp_band])
+        covDD = np.full((nDD, nDD), 1).astype(float)
+        for i in range(nDD):
+            covDD[i, i] = 2
+        covDD1 = 2 * sigma1**2 * covDD
+        covDD2 = 2 * sigma2**2 * covDD
+        R = RTK.diagonalize_squarematrix(covDD1, covDD2)
+        R_coor = np.diag([sigma3[0]**2, sigma3[1]**2, sigma3[2]**2])
+        R = RTK.diagonalize_squarematrix(R, R_coor)
+        return R
+
+    def ekf_estimation(self, P_before, sta1_coor, sta2_coor, nav_records):
+        # 预测
+        F = self.getF()
+        Q = self.getQ()
+        x_pri = self.getx(sta2_coor)
+        P_pri = F @ P_before @ F.T + Q
+        # 更新
+        H, hx = self.getH(nav_records, sta1_coor, sta2_coor, x_pri)
+        R = self.getR()
+        y = self.gety()
+        K = P_pri @ H.T @ np.linalg.inv(H @ P_pri @ H.T + R)
+        x_est = x_pri + K @ (y - hx)
+        # 输出残差
+        H, hx = self.getH(nav_records, sta1_coor, sta2_coor, x_pri)
+        if self.residual_manager:
+            self.residual_manager.add_epoch_residuals(self.DD_records.Tr, self.DD_records.base_svn, self.DD_records.qualitified_satellites, y-hx)
+        if self.DDambiguity_manager:
+            self.DDambiguity_manager.add_epoch_ambiguity(self.DD_records.Tr, self.DD_records.base_svn, self.DD_records.qualitified_satellites, x_est[3:])
         if self.DDambiguity_manager:
             self.position_manager.add_epoch_position(self.DD_records.Tr, x_est[:3])
         P_est = (np.eye(len(x_est)) - K @ H) @ P_pri
@@ -556,7 +730,7 @@ class Kalman_Filter():
 
 
 
-# 卡尔曼滤波器
+# 附带基线长约束的卡尔曼滤波器
 class Kalman_Filter_with_baseline_constrained():
     def __init__(self, DD_records_atTr, cp_band, pr_band, baseline_length, l_sigma, mode_int, residual_manager=None, DDambiguity_manager=None, position_manager=None):
         """
@@ -583,7 +757,7 @@ class Kalman_Filter_with_baseline_constrained():
         Fmatrix = np.diag([1 for i in range(n)])
         return Fmatrix
 
-    def getH(self, nav_data, sta1_coor, sta2_coor):
+    def getH(self, nav_data, sta1_coor, sta2_coor, x_array):
         H11 = []
         H21 = []
         hx = []
@@ -634,7 +808,9 @@ class Kalman_Filter_with_baseline_constrained():
         H32 = np.zeros((1, n))
         # 合成整个设计矩阵
         H = np.block([[np.array(H11), H12], [np.array(H21), H22], [H31, H32]])
-        hx = np.array(2*hx+[l12])
+        hx1 = np.array(2*hx+[l12])
+        hx2 = get_lamb_from_band(self.cp_band) * np.array(x_array[3:].tolist() + [0 for i in range(len(x_array[3:].tolist()))] + [0])
+        hx = hx1+hx2
         return H, hx
 
     def gety(self, L):
@@ -665,7 +841,7 @@ class Kalman_Filter_with_baseline_constrained():
             Q = np.diag([0.1, 0.1, 0.1] + Qs)
         # 动态基线模式
         elif self.mode == 1:
-            Q = np.diag([100, 100, 100] + Qs)
+            Q = np.diag([1000, 1000, 1000] + Qs)
         return Q
 
     def getR(self, sigma3, sigma1=0.002, sigma2=3):
@@ -687,15 +863,13 @@ class Kalman_Filter_with_baseline_constrained():
         x_pri = self.getx(sta2_coor)
         P_pri = F @ P_before @ F.T + Q
         # 更新
-        H, hx1 = self.getH(nav_records, sta1_coor, sta2_coor)
-        hx2 = get_lamb_from_band(self.cp_band) * np.array(x_pri[3:].tolist() + [0 for i in range(len(x_pri[3:].tolist()))] + [0])
-        hx = hx1+hx2
+        H, hx = self.getH(nav_records, sta1_coor, sta2_coor, x_pri)
         R = self.getR(self.l_sigma)
         y = self.gety(self.baseline_length)
         K = P_pri @ H.T @ np.linalg.inv(H @ P_pri @ H.T + R)
         x_est = x_pri + K @ (y - hx)
         # 输出残差
-        H, hx = self.getH(nav_records, sta1_coor, x_pri.tolist()[:3], x_pri)
+        H, hx = self.getH(nav_records, sta1_coor, sta2_coor, x_pri)
         if self.residual_manager:
             self.residual_manager.add_epoch_residuals(self.DD_records.Tr, self.DD_records.base_svn, self.DD_records.qualitified_satellites, y-hx)
         if self.DDambiguity_manager:
@@ -721,8 +895,8 @@ def get_common_svn(knownStation_ob_records_atTr, unknownStation_ob_records_atTr)
 
 
 def constaneously_RTK_withfilter(start_time, end_time, knownStation_ob_records, unknownStation_ob_records, br_records,
-                                 knownStation_coor, unknownStation_init_coor,
-                                 cp_band, pr_band, interval_time, cycle_slip_detect=False, baseline_length=0, l_sigma=0, ele_limit=13):
+                                 knownStation_coor, unknownStation_init_coor, cp_band, pr_band,
+                                 interval_time, cycle_slip_detect=False, mode=0, baseline_length=0, l_sigma=0, ele_limit=13):
     """
     start_time : datetime.datetime , 时间段开始时刻
     end_time : datetime.datetime , 时间段结束时刻
@@ -734,10 +908,9 @@ def constaneously_RTK_withfilter(start_time, end_time, knownStation_ob_records, 
     cp_band : 载波波段
     pr_band : 伪距波段
     interval_time : 间隔时间, s
+    mode : 静态基线为0， 动态为1
     baseline_length : 基线长度, m
     l_sigma : 基线长度标准差, m
-    ele_limit : 截止高度角, 度
-    amb_fix : 是否进行模糊度固定
     """
     Tr = start_time
     # coordinates = []
@@ -755,7 +928,7 @@ def constaneously_RTK_withfilter(start_time, end_time, knownStation_ob_records, 
     DD_ambiguity_manager.add_epoch_ambiguity(Tr, base_svn, diff_svns, N_float)
     position_manager.add_epoch_position(Tr, sta2_coor)
     # sta2_coor = unknownStation_init_coor
-    # P = np.diag([5, 5, 5, 10000000, 10000000, 10000000, 10000000, 10000000])
+    P = np.diag([100**2 for i in range(3)]+[300**2 for i in range(len(N_float))])
     # coordinates.append(sta2_coor)
     fixed_coordinates.append(sta2_coor)
     float_coordinates.append(sta2_coor)
@@ -796,8 +969,8 @@ def constaneously_RTK_withfilter(start_time, end_time, knownStation_ob_records, 
 
         # 构造双差观测值
         DD_records_collection = DD_records_atTr(Tr, [cp_band, pr_band])
-        # trans_matrix = DD_records_collection.set_base_satellite_from_ambiguity_transfer(amb_trans, knownStation_ob_records_atTr, unknownStation_ob_records_atTr, 10)
-        trans_matrix = DD_records_collection.set_elebest_base_satellite_from_ambiguity_transfer(amb_trans, knownStation_ob_records_atTr, unknownStation_ob_records_atTr)
+        trans_matrix = DD_records_collection.set_base_satellite_from_ambiguity_transfer(amb_trans, knownStation_ob_records_atTr, unknownStation_ob_records_atTr, 10)
+        # trans_matrix = DD_records_collection.set_elebest_base_satellite_from_ambiguity_transfer(amb_trans, knownStation_ob_records_atTr, unknownStation_ob_records_atTr)
         if cycle_slip_detect:
             # 进行周跳探测
             svn_removed_index, new_in, new_in_svn = DD_records_collection.add_satellites(svn_ele_qualitified, knownStation_ob_records_atTr, unknownStation_ob_records_atTr, DD_GF_collection)
@@ -810,11 +983,13 @@ def constaneously_RTK_withfilter(start_time, end_time, knownStation_ob_records, 
         if np.all(trans_matrix == 0):    # 参考星不变
             # 调整较上个历元被去除的卫星对应的vc阵
             if svn_removed_index:  # 上个历元的卫星有缺失
-                P = remove_cross_from_matrix(P, svn_removed_index, svn_removed_index)
+                svn_removed_index2 = [i+3 for i in svn_removed_index]
+                P = remove_cross_from_matrix(P, svn_removed_index2, svn_removed_index2)
         else:      # 参考星变化
             # 调整较上个历元被去除的卫星对应的vc阵
             if svn_removed_index:  # 上个历元的卫星要进行删减的
-                P = remove_cross_from_matrix(P, svn_removed_index, svn_removed_index)
+                svn_removed_index2 = [i + 3 for i in svn_removed_index]
+                P = remove_cross_from_matrix(P, svn_removed_index2, svn_removed_index2)
                 # trans_matrix = np.delete(trans_matrix, svn_removed_index, axis=1)
                 trans_matrix = remove_cross_from_matrix(trans_matrix, svn_removed_index, svn_removed_index)
             P_trans_matrix = RTK.diagonalize_squarematrix(np.eye(3), trans_matrix)
@@ -825,10 +1000,11 @@ def constaneously_RTK_withfilter(start_time, end_time, knownStation_ob_records, 
             P = RTK.diagonalize_squarematrix(P, eyes)
         # 开始估计
         if baseline_length and l_sigma:    # 带基线长度约束的模式
-            KM_estimator = Kalman_Filter_with_baseline_constrained(DD_records_collection, cp_band, pr_band, baseline_length, l_sigma, 0)
+            KM_estimator = Kalman_Filter_with_baseline_constrained(DD_records_collection, cp_band, pr_band, baseline_length, l_sigma, mode_int=mode)
             x, P = KM_estimator.ekf_estimation(P, sta1_coor=knownStation_coor, sta2_coor=coor, nav_records=br_records)
         else:     # 不带基线长度约束的模式
-            KM_estimator = Kalman_Filter(DD_records_collection, cp_band, pr_band, 1, residual_manager=DD_residual_manager, DDambiguity_manager=DD_ambiguity_manager, position_manager=position_manager)
+            KM_estimator = Kalman_Filter(DD_records_collection, cp_band, pr_band, mode_int=mode, residual_manager=DD_residual_manager, DDambiguity_manager=DD_ambiguity_manager, position_manager=position_manager)
+            # KM_estimator = Kalman_Filter_with_coordinate_constrained(DD_records_collection, cp_band, pr_band, 0, unknownStation_init_coor, residual_manager=DD_residual_manager, DDambiguity_manager=DD_ambiguity_manager, position_manager=position_manager)
             x, P = KM_estimator.ekf_estimation(P, sta1_coor=knownStation_coor, sta2_coor=coor, nav_records=br_records)
         print(Tr, x)
         DD_records_collection.DD_ambiguitys[cp_band] = x[3:].tolist()
@@ -860,7 +1036,7 @@ def constaneously_RTK_withfilter(start_time, end_time, knownStation_ob_records, 
     # position_manager.plot_position(form="scatter")
     ele_manager.plot_elevations(form="scatter")
 
-    return float_coordinates, fixed_coordinates
+    return float_coordinates, fixed_coordinates, P, amb_trans
 
 
 
@@ -871,36 +1047,54 @@ if __name__ == '__main__':
     # station1_observation_file = r"edata\obs\leij3100.20o"    # 已知站点 leij
     # station2_observation_file = r"edata\obs\zim23100.20o"    # 未知站点 zim2
     station2_observation_file = r"edata\obs\zimm3100.20o"    # 未知站点 zimm
-    station1_observation_file = r"edata\obs\wab23100.20o"    # 已知站点 wab2
-    # station1_observation_file = r"edata\obs\zim23100.20o"  # 已知站点 zim2
+    # station1_observation_file = r"edata\obs\wab23100.20o"    # 已知站点 wab2
+    station1_observation_file = r"edata\obs\zim23100.20o"  # 已知站点 zim2
     # station1_observation_file = r"edata\obs\zimm3100.20o"  # 已知站点 zimm
     broadcast_file = r"edata\sat_obit\brdc3100.20n"
 
     #
     # station1_observation_file = r"edata\attitude_project\rinex2\cuaa0030.21o"  # 已知站点 cuaa
-    # station1_observation_file = r"edata\attitude_project\rinex2\cucc0030.21o"  # 已知站点 cucc
+    # # station1_observation_file = r"edata\attitude_project\rinex2\cucc0030.21o"  # 已知站点 cucc
     # station2_observation_file = r"edata\attitude_project\rinex2\cubb0030.21o"  # 未知站点 cubb
+    # # station2_observation_file = r"edata\attitude_project\rinex2\cut00030.21o"  # 未知站点 cut0
     # broadcast_file = r"edata\attitude_project\rinex2\brdc0030.21n"
+
+    # station1_observation_file = r"D:\Desktop\XY503_XY602\A503_40.21o"  # 已知站点 503
+    # station2_observation_file = r"D:\Desktop\XY503_XY602\A602_40.21o"  # 未知站点 602
+    # broadcast_file = r"D:\Desktop\XY503_XY602\A602_40.21n"
+    # knownStation_ob_records = DoFile.read_Rinex3_oFile(station1_observation_file)
+    # unknownStation_ob_records = DoFile.read_Rinex3_oFile(station2_observation_file)
+    # br_records = DoFile.read_Renix304_nFile(broadcast_file)
+
 
     # 读入观测文件内容,得到类型对象列表
     knownStation_ob_records = DoFile.read_Rinex2_oFile(station1_observation_file)
     unknownStation_ob_records = DoFile.read_Rinex2_oFile(station2_observation_file)
     br_records = DoFile.read_GPS_nFile(broadcast_file)
     print("数据读取完毕！")
-    # knownStation_coor = [4331300.1600, 567537.0810, 4633133.5100]  # zim2
-    knownStation_coor = [4327318.2325, 566955.9585, 4636425.9246]  # wab2
+
+
+
+    # 坐标
+    knownStation_coor = [4331300.1600, 567537.0810, 4633133.5100]  # zim2
+    # knownStation_coor = [4327318.2325, 566955.9585, 4636425.9246]  # wab2
     init_coor = [4331297.3480, 567555.6390, 4633133.7280]  # zimm
 
-    # # knownStation_coor = [-2364336.1554, 4870280.8223, -3360815.9725]  # cuaa
-    # knownStation_coor = [-2364332.0167, 4870284.0337, -3360814.1380]  # cucc
+    # knownStation_coor = [-2364336.1554, 4870280.8223, -3360815.9725]  # cuaa
+    # # knownStation_coor = [-2364332.0167, 4870284.0337, -3360814.1380]  # cucc
     # init_coor = [-2364334.0912, 4870285.4649, -3360807.7523]  # cubb
 
+    # knownStation_coor = [-2850420.9626, 4651846.2388, 3292931.3812]  # 503
+    # init_coor = [-2850405.2169, 4651847.9444, 3292949.6125]  # 602
 
     start_time = datetime.datetime(2020, 11, 5, 0, 0, 0)
-    end_time = datetime.datetime(2020, 11, 5, 2, 0, 0)
-    # start_time = datetime.datetime(2021, 1, 3, 0, 0, 0)
-    # end_time = datetime.datetime(2021, 1, 3, 1, 59, 0)
-    cal_float_coors, cal_fixed_coors = constaneously_RTK_withfilter(start_time, end_time, knownStation_ob_records, unknownStation_ob_records, br_records, knownStation_coor, init_coor, 'L1_L', 'L2_C', 30, ele_limit=20)
+    end_time = datetime.datetime(2020, 11, 5, 23, 59, 0)
+    # start_time = datetime.datetime(2021, 1, 3, 16, 0, 0)
+    # end_time = datetime.datetime(2021, 1, 3, 20, 59, 0)
+    # start_time = datetime.datetime(2021, 2, 9, 0, 0, 0)
+    # end_time = datetime.datetime(2021, 2, 9, 23, 59, 0)
+
+    cal_float_coors, cal_fixed_coors, P, ambi_transfer = constaneously_RTK_withfilter(start_time, end_time, knownStation_ob_records, unknownStation_ob_records, br_records, knownStation_coor, init_coor, 'L1_L', 'L2_C', 30, ele_limit=9, cycle_slip_detect=False)
     true_coors = [init_coor for i in range(len(cal_fixed_coors))]
 
     time_series = PictureResults.get_time_series(start_time, end_time, 30)
@@ -908,8 +1102,8 @@ if __name__ == '__main__':
 
     SPP.cal_NEUerrors(true_coors, cal_fixed_coors, T_series=time_series)
     SPP.cal_NEUerrors(true_coors, cal_float_coors, T_series=time_series)
-    print("固定解 neu各方向RMSE:", ResultAnalyse.get_NEU_rmse(true_coors, cal_float_coors))
-    print("浮点解 neu各方向RMSE:", ResultAnalyse.get_NEU_rmse(true_coors, cal_fixed_coors))
+    print("固定解 neu各方向RMSE:", ResultAnalyse.get_NEU_rmse(true_coors, cal_fixed_coors))
+    print("浮点解 neu各方向RMSE:", ResultAnalyse.get_NEU_rmse(true_coors, cal_float_coors))
 
 
 
